@@ -27,3 +27,19 @@ APK output: `app/build/outputs/apk/debug/app-debug.apk`.
 ## Status
 
 v0.1 prototype. The Shield screen currently demonstrates permission architecture; OS-level interventions will be added incrementally and remain opt-in.
+
+
+## Public-benefit commitment
+
+Carpe is being built for human benefit, not profit maximization.
+
+Product constraints:
+- No advertising.
+- No sale of personal data.
+- No paid placement or pay-to-influence recommendations.
+- No engagement optimization designed to keep people inside Carpe.
+- AI recommendations optimize for goals the user chooses, not commercial outcomes.
+- Optional data access requires informed opt-in and Carpe remains useful when access is declined.
+- AI assessments should distinguish beneficial technology use from detrimental or unwanted use rather than treating all screen time as harmful.
+- Users can question, correct, or reject Carpe's interpretation of their behavior.
+- Success is measured by technology serving the user's life, including when the best outcome is spending less time in Carpe itself.
