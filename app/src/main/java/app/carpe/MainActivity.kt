@@ -23,6 +23,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.carpe.core.CarpeEngine
+import app.carpe.core.LearningStore
+import app.carpe.core.TechUseObservation
+import app.carpe.core.Impact
 
 private val Cream = Color(0xFFF5F1E8)
 private val Ink = Color(0xFF17201B)
@@ -152,7 +156,27 @@ private fun ShieldScreen(p: PaddingValues, context: Context) = Page(p, "Algorith
             if (granted) {
                 Spacer(Modifier.height(10.dp))
                 val top = usage.last24Hours().take(5)
-                top.forEach { Text("• ${it.packageName.substringAfterLast('.')} — ${it.foregroundMinutes} min", fontSize=13.sp) }
+                val engine = remember { CarpeEngine() }
+                val learning = remember { LearningStore(context) }
+                top.forEach { app ->
+                    var rating by remember(app.packageName) { mutableStateOf(learning.rating(app.packageName)) }
+                    val assessment = engine.assess(
+                        TechUseObservation(app.packageName, app.foregroundMinutes.toInt(), userRating = rating),
+                        emptyList()
+                    )
+                    Card(colors = CardDefaults.cardColors(containerColor = Cream)) {
+                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(app.packageName.substringAfterLast('.') + " — " + app.foregroundMinutes + " min", fontWeight=FontWeight.Bold)
+                            Text(assessment.explanation, fontSize=13.sp, color=Ink.copy(alpha=.7f))
+                            assessment.suggestedAction?.let { Text(it, fontSize=13.sp, color=Green, fontWeight=FontWeight.Medium) }
+                            Row(horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+                                listOf("Harmful" to 1, "Mixed" to 3, "Helpful" to 5).forEach { choice ->
+                                    FilterChip(selected=rating==choice.second, onClick={ rating=choice.second; learning.rate(app.packageName, choice.second) }, label={ Text(choice.first) })
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
