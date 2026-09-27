@@ -2,6 +2,11 @@ package app.carpe
 
 import android.os.Bundle
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -40,6 +45,41 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent { CarpeApp() }
     }
+
+    override fun onStart() {
+        super.onStart()
+        checkForCarpeUpdate()
+    }
+
+    private fun checkForCarpeUpdate() {
+        Thread {
+            try {
+                val connection = URL("https://raw.githubusercontent.com/CarpeDev88/Carpe/main/update.json").openConnection() as HttpURLConnection
+                connection.connectTimeout = 3000
+                connection.readTimeout = 3000
+                connection.setRequestProperty("Cache-Control", "no-cache")
+                val body = connection.inputStream.bufferedReader().use { it.readText() }
+                val latest = Regex("\\\"versionCode\\\"\\s*:\\s*(\\d+)").find(body)?.groupValues?.get(1)?.toIntOrNull() ?: return@Thread
+                val current = packageManager.getPackageInfo(packageName, 0).longVersionCode.toInt()
+                if (latest > current) {
+                    val url = Regex("\\\"downloadUrl\\\"\\s*:\\s*\\\"([^\\\"]+)").find(body)?.groupValues?.get(1)
+                        ?: "https://github.com/CarpeDev88/Carpe/releases/latest"
+                    runOnUiThread {
+                        android.app.AlertDialog.Builder(this)
+                            .setTitle("Carpe update available")
+                            .setMessage("A newer Carpe build is ready. Android will ask you to approve installation.")
+                            .setPositiveButton("Get update") { _, _ ->
+                                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                            }
+                            .setNegativeButton("Not now", null)
+                            .show()
+                    }
+                }
+            } catch (_: Exception) {
+                // Updates must never prevent Carpe from opening or working offline.
+            }
+        }.start()
+    }
 }
 
 @Composable
@@ -60,7 +100,7 @@ fun CarpeApp() {
             }
         ) { padding ->
             when (selected) {
-                0 -> TodayScreen(padding, reclaimed) { reclaimed += 5; prefs.edit().putInt("reclaimed", reclaimed).apply() }
+                0 -> TodayScreen(padding, reclaimed, context) { reclaimed += 5; prefs.edit().putInt("reclaimed", reclaimed).apply() }
                 1 -> IntentionsScreen(padding, prefs)
                 2 -> ShieldScreen(padding, context)
                 else -> MeScreen(padding, reclaimed)
@@ -85,7 +125,7 @@ private fun Page(padding: PaddingValues, title: String, subtitle: String, conten
 }
 
 @Composable
-private fun TodayScreen(p: PaddingValues, reclaimed: Int, add: () -> Unit) = Page(p, "Own your attention.", "Technology should help you build a life you want to live — then get out of the way.") {
+private fun TodayScreen(p: PaddingValues, reclaimed: Int, context: Context, add: () -> Unit) = Page(p, "Own your attention.", "Technology should help you build a life you want to live — then get out of the way.") {
     Card(colors = CardDefaults.cardColors(containerColor = Green), shape = RoundedCornerShape(24.dp)) {
         Column(Modifier.padding(22.dp)) {
             Text("TIME RECLAIMED TODAY", color = Color.White.copy(alpha=.7f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
@@ -100,7 +140,13 @@ private fun TodayScreen(p: PaddingValues, reclaimed: Int, add: () -> Unit) = Pag
         Intention("Do meaningful work", "Protect 25 minutes for something that matters.", "work"),
         Intention("Spend deliberately", "Pause before an impulse purchase.", "save")
     ).forEach { item ->
-        ElevatedCard(onClick = add, colors = CardDefaults.elevatedCardColors(containerColor = Color.White)) {
+        ElevatedCard(onClick = {
+            add()
+            if (item.icon == "cook") {
+                val query = URLEncoder.encode("recipes easy home cooking", "UTF-8")
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=$query")))
+            }
+        }, colors = CardDefaults.elevatedCardColors(containerColor = Color.White)) {
             Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(when(item.icon){"cook"->Icons.Outlined.Restaurant;"move"->Icons.Outlined.DirectionsWalk;"work"->Icons.Outlined.Work;else->Icons.Outlined.Savings}, null, tint=Green)
                 Spacer(Modifier.width(15.dp))
@@ -208,5 +254,6 @@ private fun MeScreen(p: PaddingValues, reclaimed:Int) = Page(p, "Your life, not 
             Text("Daily intention: 60 minutes", color=Ink.copy(alpha=.6f))
         }
     }
+    Text("Carpe v0.2.0 • checks for updates whenever the app opens.", color=Green, fontWeight=FontWeight.Medium)
     Text("Carpe has no infinite feed, no streak punishment, and no ads.", color=Ink.copy(alpha=.7f))
 }
