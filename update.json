@@ -1,6 +1,6 @@
 {
-  "versionCode": 3,
-  "versionName": "0.3.0",
+  "versionCode": 4,
+  "versionName": "0.4.0",
   "downloadUrl": "https://github.com/CarpeDev88/Carpe/actions/workflows/android.yml",
-  "message": "Functional alpha: adaptive coach, focus sessions, action history, goals, usage intelligence and privacy controls."
+  "message": "CARPE intelligence alpha: longitudinal baselines, attention-risk evidence, notification pressure, and reopening-pattern analysis."
 }
