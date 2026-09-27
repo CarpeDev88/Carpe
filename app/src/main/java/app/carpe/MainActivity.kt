@@ -1,6 +1,8 @@
 package app.carpe
 
 import android.os.Bundle
+import android.content.Context
+import androidx.compose.ui.platform.LocalContext
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -35,8 +37,10 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun CarpeApp() {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("carpe", Context.MODE_PRIVATE) }
     var selected by remember { mutableIntStateOf(0) }
-    var reclaimed by remember { mutableIntStateOf(18) }
+    var reclaimed by remember { mutableIntStateOf(prefs.getInt("reclaimed", 0)) }
     MaterialTheme(colorScheme = lightColorScheme(primary = Green, background = Cream, surface = Color.White)) {
         Scaffold(
             containerColor = Cream,
@@ -49,9 +53,9 @@ fun CarpeApp() {
             }
         ) { padding ->
             when (selected) {
-                0 -> TodayScreen(padding, reclaimed) { reclaimed += 5 }
-                1 -> IntentionsScreen(padding)
-                2 -> ShieldScreen(padding)
+                0 -> TodayScreen(padding, reclaimed) { reclaimed += 5; prefs.edit().putInt("reclaimed", reclaimed).apply() }
+                1 -> IntentionsScreen(padding, prefs)
+                2 -> ShieldScreen(padding, context)
                 else -> MeScreen(padding, reclaimed)
             }
         }
@@ -101,13 +105,14 @@ private fun TodayScreen(p: PaddingValues, reclaimed: Int, add: () -> Unit) = Pag
 }
 
 @Composable
-private fun IntentionsScreen(p: PaddingValues) = Page(p, "Your intentions", "Carpe optimizes for what you choose, not what keeps you engaged.") {
+private fun IntentionsScreen(p: PaddingValues, prefs: android.content.SharedPreferences) = Page(p, "Your intentions", "Carpe optimizes for what you choose, not what keeps you engaged.") {
     listOf("More time offline", "Fitness & movement", "Home cooking", "Focused work", "Saving money", "Less compulsive content").forEach {
-        var on by remember { mutableStateOf(it == "More time offline" || it == "Focused work") }
+        val key = "goal_" + it.lowercase().replace(" ", "_").replace("&", "and")
+        var on by remember { mutableStateOf(prefs.getBoolean(key, it == "More time offline" || it == "Focused work")) }
         Card(colors=CardDefaults.cardColors(containerColor=Color.White)) {
             Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment=Alignment.CenterVertically) {
                 Text(it, Modifier.weight(1f), fontWeight=FontWeight.Medium)
-                Switch(checked=on, onCheckedChange={on=it})
+                Switch(checked=on, onCheckedChange={ value -> on=value; prefs.edit().putBoolean(key, value).apply() })
             }
         }
     }
@@ -115,7 +120,7 @@ private fun IntentionsScreen(p: PaddingValues) = Page(p, "Your intentions", "Car
 }
 
 @Composable
-private fun ShieldScreen(p: PaddingValues) = Page(p, "Algorithm shield", "Reduce the signals that make attention-harvesting systems effective. You decide what Carpe can access.") {
+private fun ShieldScreen(p: PaddingValues, context: Context) = Page(p, "Algorithm shield", "Reduce the signals that make attention-harvesting systems effective. You decide what Carpe can access.") {
     Card(colors=CardDefaults.cardColors(containerColor=SoftGreen), shape=RoundedCornerShape(20.dp)) {
         Column(Modifier.padding(20.dp)) {
             Icon(Icons.Outlined.Lock, null, tint=Green)
@@ -124,7 +129,22 @@ private fun ShieldScreen(p: PaddingValues) = Page(p, "Algorithm shield", "Reduce
             Text("Carpe remains useful without optional access. Extra capabilities unlock only when you explicitly choose them.", color=Ink.copy(alpha=.7f))
         }
     }
-    PermissionRow("Usage insights", "Off", "Can help identify time sinks")
+    val usage = remember { app.carpe.core.UsageAccess(context) }
+    var granted by remember { mutableStateOf(usage.isGranted()) }
+    Card(onClick = { if (!granted) context.startActivity(usage.settingsIntent()) }, colors=CardDefaults.cardColors(containerColor=Color.White)) {
+        Column(Modifier.fillMaxWidth().padding(18.dp)) {
+            Row(Modifier.fillMaxWidth()) {
+                Text("Usage insights", Modifier.weight(1f), fontWeight=FontWeight.Bold)
+                Text(if (granted) "On" else "Off — tap to enable", color=Green)
+            }
+            Text(if (granted) "Carpe can analyze recent app usage locally." else "Optional. Android will ask you to approve Usage Access.", color=Ink.copy(alpha=.55f), fontSize=14.sp)
+            if (granted) {
+                Spacer(Modifier.height(10.dp))
+                val top = usage.last24Hours().take(5)
+                top.forEach { Text("• ${it.packageName.substringAfterLast('.')} — ${it.foregroundMinutes} min", fontSize=13.sp) }
+            }
+        }
+    }
     PermissionRow("Notification filtering", "Off", "Can reduce attention traps")
     PermissionRow("Website protection", "Off", "Future opt-in content controls")
     PermissionRow("Health & activity", "Off", "Future opt-in wellbeing context")
