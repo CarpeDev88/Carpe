@@ -70,7 +70,7 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
  val granted=u.isGranted()
  ActionCard("Usage intelligence",if(granted)"Enabled. CARPE can analyze foreground app time locally." else "Optional. Tap to grant Android Usage Access."){if(!granted)c.startActivity(u.settingsIntent())}
  ActionCard("Notification intelligence","Grant CARPE notification access to measure which apps repeatedly compete for your attention."){c.startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"))}
- ActionCard("Notification controls","Open Android notification settings to silence apps that pull you back."){c.startActivity(Intent(Settings.ACTION_NOTIFICATION_SETTINGS))}
+ ActionCard("Notification controls","Open Android notification settings to silence apps that pull you back."){c.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE,c.packageName))}
  ActionCard("Privacy dashboard","Review Android permissions granted to apps on this device."){try{c.startActivity(Intent(Settings.ACTION_PRIVACY_SETTINGS))}catch(_:Exception){}}
  if(granted){
   val apps=u.last24Hours().take(12)
