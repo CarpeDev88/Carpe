@@ -1,259 +1,83 @@
 package app.carpe
 
-import android.os.Bundle
+import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import java.net.HttpURLConnection
-import java.net.URL
-import java.net.URLEncoder
-import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
+import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import app.carpe.core.CarpeEngine
-import app.carpe.core.LearningStore
-import app.carpe.core.TechUseObservation
-import app.carpe.core.Impact
+import app.carpe.core.*
+import java.net.URLEncoder
 
-private val Cream = Color(0xFFF5F1E8)
-private val Ink = Color(0xFF17201B)
-private val Green = Color(0xFF355E48)
-private val SoftGreen = Color(0xFFDDE7DD)
+private val Cream=Color(0xFFF5F1E8); private val Green=Color(0xFF355E48)
+class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.onCreate(b);setContent{CarpeApp()}}}
 
-data class Intention(val title: String, val detail: String, val icon: String)
-
-class MainActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent { CarpeApp() }
-    }
-
-    override fun onStart() {
-        super.onStart()
-        checkForCarpeUpdate()
-    }
-
-    private fun checkForCarpeUpdate() {
-        Thread {
-            try {
-                val connection = URL("https://raw.githubusercontent.com/CarpeDev88/Carpe/main/update.json").openConnection() as HttpURLConnection
-                connection.connectTimeout = 3000
-                connection.readTimeout = 3000
-                connection.setRequestProperty("Cache-Control", "no-cache")
-                val body = connection.inputStream.bufferedReader().use { it.readText() }
-                val latest = Regex("\\\"versionCode\\\"\\s*:\\s*(\\d+)").find(body)?.groupValues?.get(1)?.toIntOrNull() ?: return@Thread
-                val current = packageManager.getPackageInfo(packageName, 0).longVersionCode.toInt()
-                if (latest > current) {
-                    val url = Regex("\\\"downloadUrl\\\"\\s*:\\s*\\\"([^\\\"]+)").find(body)?.groupValues?.get(1)
-                        ?: "https://github.com/CarpeDev88/Carpe/releases/latest"
-                    runOnUiThread {
-                        android.app.AlertDialog.Builder(this)
-                            .setTitle("Carpe update available")
-                            .setMessage("A newer Carpe build is ready. Android will ask you to approve installation.")
-                            .setPositiveButton("Get update") { _, _ ->
-                                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                            }
-                            .setNegativeButton("Not now", null)
-                            .show()
-                    }
-                }
-            } catch (_: Exception) {
-                // Updates must never prevent Carpe from opening or working offline.
-            }
-        }.start()
-    }
+@Composable fun CarpeApp(){
+ val context=androidx.compose.ui.platform.LocalContext.current
+ val prefs=remember{context.getSharedPreferences("carpe",Context.MODE_PRIVATE)}
+ val actions=remember{ActionStore(context)}; val usage=remember{UsageAccess(context)}
+ var tab by remember{mutableIntStateOf(0)}; var refresh by remember{mutableIntStateOf(0)}
+ MaterialTheme(colorScheme=lightColorScheme(primary=Green,background=Cream)){
+  Scaffold(bottomBar={NavigationBar{listOf("Today","Coach","Focus","Shield","Me").forEachIndexed{i,n->NavigationBarItem(selected=tab==i,onClick={tab=i},icon={Text(listOf("☀","✦","◉","⬡","●")[i])},label={Text(n)})}}}){p->
+   when(tab){
+    0->Today(p,context,actions){refresh++}
+    1->Coach(p,prefs,usage,actions,refresh)
+    2->Focus(p,actions){refresh++}
+    3->Shield(p,context,usage)
+    else->Me(p,prefs,actions,refresh)
+   }
+  }
+ }
 }
-
-@Composable
-fun CarpeApp() {
-    val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences("carpe", Context.MODE_PRIVATE) }
-    var selected by remember { mutableIntStateOf(0) }
-    var reclaimed by remember { mutableIntStateOf(prefs.getInt("reclaimed", 0)) }
-    MaterialTheme(colorScheme = lightColorScheme(primary = Green, background = Cream, surface = Color.White)) {
-        Scaffold(
-            containerColor = Cream,
-            bottomBar = {
-                NavigationBar(containerColor = Color.White) {
-                    listOf("Today" to Icons.Outlined.WbSunny, "Intentions" to Icons.Outlined.CheckCircle, "Shield" to Icons.Outlined.Shield, "Me" to Icons.Outlined.Person).forEachIndexed { i, item ->
-                        NavigationBarItem(selected = selected == i, onClick = { selected = i }, icon = { Icon(item.second, item.first) }, label = { Text(item.first) })
-                    }
-                }
-            }
-        ) { padding ->
-            when (selected) {
-                0 -> TodayScreen(padding, reclaimed, context) { reclaimed += 5; prefs.edit().putInt("reclaimed", reclaimed).apply() }
-                1 -> IntentionsScreen(padding, prefs)
-                2 -> ShieldScreen(padding, context)
-                else -> MeScreen(padding, reclaimed)
-            }
-        }
-    }
+@Composable private fun Page(p:PaddingValues,title:String,sub:String,body:@Composable ColumnScope.()->Unit){Column(Modifier.fillMaxSize().padding(p).verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){Text("CARPE",color=Green,fontWeight=FontWeight.Bold,letterSpacing=3.sp);Text(title,fontSize=32.sp,fontWeight=FontWeight.Bold);Text(sub,color=Color.DarkGray);body();Spacer(Modifier.height(30.dp))}}
+@Composable private fun Today(p:PaddingValues,c:Context,s:ActionStore,changed:()->Unit)=Page(p,"Own your attention.","Choose an action that improves life outside this app."){
+ Text("Choose what happens next",fontSize=20.sp,fontWeight=FontWeight.Bold)
+ ActionCard("Cook something","Search recipes and make a meal."){s.add("cook","Cooked something",30);changed();val q=URLEncoder.encode("healthy easy home cooking recipes","UTF-8");c.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://www.google.com/search?q="+q)))}
+ ActionCard("Move your body","Walk, train, stretch, or get outside."){s.add("move","Movement",15);changed()}
+ ActionCard("Do meaningful work","Start a protected 25-minute focus block."){s.add("focus","Meaningful work",25);changed()}
+ ActionCard("Spend deliberately","Use a pause before a non-essential purchase."){s.add("save","Purchase pause",5);changed()}
+ Text("CARPE counts completed offline actions, not time spent inside CARPE.",color=Green,fontWeight=FontWeight.Medium)
 }
-
-@Composable
-private fun Page(padding: PaddingValues, title: String, subtitle: String, content: @Composable ColumnScope.() -> Unit) {
-    Column(
-        Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(22.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Spacer(Modifier.height(8.dp))
-        Text("CARPE", color = Green, fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
-        Text(title, color = Ink, fontSize = 34.sp, fontWeight = FontWeight.SemiBold)
-        Text(subtitle, color = Ink.copy(alpha=.65f), fontSize = 17.sp, lineHeight = 24.sp)
-        content()
-        Spacer(Modifier.height(30.dp))
-    }
+@Composable private fun ActionCard(t:String,d:String,on:()->Unit){ElevatedCard(onClick=on){Column(Modifier.fillMaxWidth().padding(18.dp)){Text(t,fontWeight=FontWeight.Bold,fontSize=18.sp);Text(d,color=Color.DarkGray)}}}
+@Composable private fun Coach(p:PaddingValues,prefs:android.content.SharedPreferences,u:UsageAccess,a:ActionStore,r:Int)=Page(p,"CARPE intelligence","Recommendations use only the context you choose to provide. Device usage stays local in this alpha."){
+ val names=listOf("More time offline","Fitness & movement","Home cooking","Focused work","Saving money","Less compulsive content")
+ val goals=names.filter{prefs.getBoolean("goal_"+it.lowercase().replace(" ","_").replace("&","and"),it=="More time offline"||it=="Focused work")}
+ val top=if(u.isGranted())u.last24Hours().take(8) else emptyList()
+ val suggestions=AiCoach().suggest(CoachContext(a.todayMinutes(),goals,top,a.recent()))
+ Text("Suggested next moves",fontWeight=FontWeight.Bold,fontSize=20.sp)
+ suggestions.forEach{s->Card{Column(Modifier.fillMaxWidth().padding(18.dp)){Text(s.title,fontWeight=FontWeight.Bold);Text(s.reason);Text("Suggested: "+s.minutes+" min",color=Green)}}}
+ Text("Why this is AI-assisted",fontWeight=FontWeight.Bold);Text("CARPE combines your explicit goals, your feedback, completed actions, and—only if you grant it—local app-usage patterns. The recommendation engine is designed to optimize for your stated life goals rather than engagement.")
 }
-
-@Composable
-private fun TodayScreen(p: PaddingValues, reclaimed: Int, context: Context, add: () -> Unit) = Page(p, "Own your attention.", "Technology should help you build a life you want to live — then get out of the way.") {
-    Card(colors = CardDefaults.cardColors(containerColor = Green), shape = RoundedCornerShape(24.dp)) {
-        Column(Modifier.padding(22.dp)) {
-            Text("TIME RECLAIMED TODAY", color = Color.White.copy(alpha=.7f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text("$reclaimed min", color = Color.White, fontSize = 38.sp, fontWeight = FontWeight.Bold)
-            Text("Small departures from the loop add up.", color = Color.White.copy(alpha=.8f))
-        }
-    }
-    Text("Choose what happens next", fontWeight = FontWeight.Bold, fontSize = 20.sp)
-    listOf(
-        Intention("Cook something", "Trade scrolling for making a meal.", "cook"),
-        Intention("Move your body", "Walk, train, stretch — your choice.", "move"),
-        Intention("Do meaningful work", "Protect 25 minutes for something that matters.", "work"),
-        Intention("Spend deliberately", "Pause before an impulse purchase.", "save")
-    ).forEach { item ->
-        ElevatedCard(onClick = {
-            add()
-            if (item.icon == "cook") {
-                val query = URLEncoder.encode("recipes easy home cooking", "UTF-8")
-                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=$query")))
-            }
-        }, colors = CardDefaults.elevatedCardColors(containerColor = Color.White)) {
-            Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(when(item.icon){"cook"->Icons.Outlined.Restaurant;"move"->Icons.Outlined.DirectionsWalk;"work"->Icons.Outlined.Work;else->Icons.Outlined.Savings}, null, tint=Green)
-                Spacer(Modifier.width(15.dp))
-                Column { Text(item.title, fontWeight=FontWeight.Bold); Text(item.detail, color=Ink.copy(alpha=.6f), fontSize=14.sp) }
-            }
-        }
-    }
-    Button(onClick = add, modifier=Modifier.fillMaxWidth().height(54.dp)) { Text("I’m leaving the loop") }
+@Composable private fun Focus(p:PaddingValues,a:ActionStore,changed:()->Unit)=Page(p,"Focus","A timer that is successful when you stop looking at CARPE."){
+ var running by remember{mutableStateOf(false)};var left by remember{mutableLongStateOf(25*60_000L)};var timer by remember{mutableStateOf<FocusTimer?>(null)}
+ Text(String.format("%02d:%02d",left/60000,(left/1000)%60),fontSize=52.sp,fontWeight=FontWeight.Bold)
+ Button(onClick={if(!running){running=true;timer=FocusTimer(25,{left=it},{running=false;left=0;a.add("focus","Completed focus session",25);changed()}).also{it.start()}}else{timer?.cancel();running=false}},modifier=Modifier.fillMaxWidth()){Text(if(running)"Stop session" else "Start 25-minute focus")}
+ Text("Put the phone down. CARPE will not send engagement prompts during the session.")
 }
-
-@Composable
-private fun IntentionsScreen(p: PaddingValues, prefs: android.content.SharedPreferences) = Page(p, "Your intentions", "Carpe optimizes for what you choose, not what keeps you engaged.") {
-    listOf("More time offline", "Fitness & movement", "Home cooking", "Focused work", "Saving money", "Less compulsive content").forEach {
-        val key = "goal_" + it.lowercase().replace(" ", "_").replace("&", "and")
-        var on by remember { mutableStateOf(prefs.getBoolean(key, it == "More time offline" || it == "Focused work")) }
-        Card(colors=CardDefaults.cardColors(containerColor=Color.White)) {
-            Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment=Alignment.CenterVertically) {
-                Text(it, Modifier.weight(1f), fontWeight=FontWeight.Medium)
-                Switch(checked=on, onCheckedChange={ value -> on=value; prefs.edit().putBoolean(key, value).apply() })
-            }
-        }
-    }
-    Text("These settings stay on this device in this prototype.", color=Ink.copy(alpha=.55f), fontSize=13.sp)
+@Composable private fun Shield(p:PaddingValues,c:Context,u:UsageAccess)=Page(p,"Algorithm shield","See and reduce the signals that attention-harvesting systems use."){
+ val granted=u.isGranted()
+ ActionCard("Usage intelligence",if(granted)"Enabled. CARPE can analyze foreground app time locally." else "Optional. Tap to grant Android Usage Access."){if(!granted)c.startActivity(u.settingsIntent())}
+ ActionCard("Notification controls","Open Android notification settings to silence apps that pull you back."){c.startActivity(Intent(Settings.ACTION_NOTIFICATION_SETTINGS))}
+ ActionCard("Privacy dashboard","Review Android permissions granted to apps on this device."){try{c.startActivity(Intent(Settings.ACTION_PRIVACY_SETTINGS))}catch(_:Exception){}}
+ if(granted){Text("Most-used apps",fontWeight=FontWeight.Bold);u.last24Hours().take(8).forEach{Text(it.packageName.substringAfterLast('.')+"  •  "+it.foregroundMinutes+" min")}}
+ Text("CARPE does not require these permissions. Granting them should add capability, never unlock basic dignity or usefulness.",color=Green)
 }
-
-@Composable
-private fun ShieldScreen(p: PaddingValues, context: Context) = Page(p, "Algorithm shield", "Reduce the signals that make attention-harvesting systems effective. You decide what Carpe can access.") {
-    Card(colors=CardDefaults.cardColors(containerColor=SoftGreen), shape=RoundedCornerShape(20.dp)) {
-        Column(Modifier.padding(20.dp)) {
-            Icon(Icons.Outlined.Lock, null, tint=Green)
-            Spacer(Modifier.height(10.dp))
-            Text("Minimum permission by default", fontWeight=FontWeight.Bold, fontSize=19.sp)
-            Text("Carpe remains useful without optional access. Extra capabilities unlock only when you explicitly choose them.", color=Ink.copy(alpha=.7f))
-        }
-    }
-    val usage = remember { app.carpe.core.UsageAccess(context) }
-    var granted by remember { mutableStateOf(usage.isGranted()) }
-    val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) granted = usage.isGranted()
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-    Card(onClick = { if (!granted) context.startActivity(usage.settingsIntent()) }, colors=CardDefaults.cardColors(containerColor=Color.White)) {
-        Column(Modifier.fillMaxWidth().padding(18.dp)) {
-            Row(Modifier.fillMaxWidth()) {
-                Text("Usage insights", Modifier.weight(1f), fontWeight=FontWeight.Bold)
-                Text(if (granted) "On" else "Off — tap to enable", color=Green)
-            }
-            Text(if (granted) "Carpe can analyze recent app usage locally." else "Optional. Android will ask you to approve Usage Access.", color=Ink.copy(alpha=.55f), fontSize=14.sp)
-            if (granted) {
-                Spacer(Modifier.height(10.dp))
-                val top = usage.last24Hours().take(5)
-                val engine = remember { CarpeEngine() }
-                val learning = remember { LearningStore(context) }
-                top.forEach { app ->
-                    var rating by remember(app.packageName) { mutableStateOf(learning.rating(app.packageName)) }
-                    val assessment = engine.assess(
-                        TechUseObservation(app.packageName, app.foregroundMinutes.toInt(), userRating = rating),
-                        emptyList()
-                    )
-                    Card(colors = CardDefaults.cardColors(containerColor = Cream)) {
-                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(app.packageName.substringAfterLast('.') + " — " + app.foregroundMinutes + " min", fontWeight=FontWeight.Bold)
-                            Text(assessment.explanation, fontSize=13.sp, color=Ink.copy(alpha=.7f))
-                            assessment.suggestedAction?.let { Text(it, fontSize=13.sp, color=Green, fontWeight=FontWeight.Medium) }
-                            Row(horizontalArrangement=Arrangement.spacedBy(6.dp)) {
-                                listOf("Harmful" to 1, "Mixed" to 3, "Helpful" to 5).forEach { choice ->
-                                    FilterChip(selected=rating==choice.second, onClick={ rating=choice.second; learning.rate(app.packageName, choice.second) }, label={ Text(choice.first) })
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    PermissionRow("Notification filtering", "Off", "Can reduce attention traps")
-    PermissionRow("Website protection", "Off", "Future opt-in content controls")
-    PermissionRow("Health & activity", "Off", "Future opt-in wellbeing context")
-    Text("No permission is required to use the core app.", fontWeight=FontWeight.Bold, color=Green)
-}
-
-@Composable
-private fun PermissionRow(name:String, status:String, detail:String) {
-    Card(colors=CardDefaults.cardColors(containerColor=Color.White)) {
-        Column(Modifier.fillMaxWidth().padding(18.dp)) {
-            Row(Modifier.fillMaxWidth()) { Text(name, Modifier.weight(1f), fontWeight=FontWeight.Bold); Text(status, color=Green) }
-            Text(detail, color=Ink.copy(alpha=.55f), fontSize=14.sp)
-        }
-    }
-}
-
-@Composable
-private fun MeScreen(p: PaddingValues, reclaimed:Int) = Page(p, "Your life, not a feed", "Progress is measured by time and attention returned to you — not engagement with Carpe.") {
-    Card(colors=CardDefaults.cardColors(containerColor=Color.White)) {
-        Column(Modifier.padding(22.dp)) {
-            Text("TODAY", color=Green, fontWeight=FontWeight.Bold, fontSize=12.sp)
-            Text("$reclaimed minutes reclaimed", fontSize=24.sp, fontWeight=FontWeight.Bold)
-            Spacer(Modifier.height(8.dp))
-            LinearProgressIndicator(progress={ (reclaimed/60f).coerceAtMost(1f) }, modifier=Modifier.fillMaxWidth())
-            Spacer(Modifier.height(8.dp))
-            Text("Daily intention: 60 minutes", color=Ink.copy(alpha=.6f))
-        }
-    }
-    Text("Carpe v0.2.0 • checks for updates whenever the app opens.", color=Green, fontWeight=FontWeight.Medium)
-    Text("Carpe has no infinite feed, no streak punishment, and no ads.", color=Ink.copy(alpha=.7f))
+@Composable private fun Me(p:PaddingValues,prefs:android.content.SharedPreferences,a:ActionStore,r:Int)=Page(p,"Your life, not a feed","Set what CARPE should optimize for and review what you actually did."){
+ val goals=listOf("More time offline","Fitness & movement","Home cooking","Focused work","Saving money","Less compulsive content")
+ goals.forEach{g->val k="goal_"+g.lowercase().replace(" ","_").replace("&","and");var on by remember{mutableStateOf(prefs.getBoolean(k,g=="More time offline"||g=="Focused work"))};Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text(g,Modifier.weight(1f));Switch(on,{on=it;prefs.edit().putBoolean(k,it).apply()})}}
+ HorizontalDivider();Text(a.todayMinutes().toString()+" minutes invested in deliberate actions",fontSize=22.sp,fontWeight=FontWeight.Bold)
+ a.recent(8).forEach{Text("• "+it.title+" — "+it.minutes+" min")}
+ Text("CARPE v0.3 alpha",color=Green,fontWeight=FontWeight.Bold)
 }
