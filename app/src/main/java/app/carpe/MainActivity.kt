@@ -69,9 +69,25 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
 @Composable private fun Shield(p:PaddingValues,c:Context,u:UsageAccess)=Page(p,"Algorithm shield","See and reduce the signals that attention-harvesting systems use."){
  val granted=u.isGranted()
  ActionCard("Usage intelligence",if(granted)"Enabled. CARPE can analyze foreground app time locally." else "Optional. Tap to grant Android Usage Access."){if(!granted)c.startActivity(u.settingsIntent())}
+ ActionCard("Notification intelligence","Grant CARPE notification access to measure which apps repeatedly compete for your attention."){c.startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"))}
  ActionCard("Notification controls","Open Android notification settings to silence apps that pull you back."){c.startActivity(Intent(Settings.ACTION_NOTIFICATION_SETTINGS))}
  ActionCard("Privacy dashboard","Review Android permissions granted to apps on this device."){try{c.startActivity(Intent(Settings.ACTION_PRIVACY_SETTINGS))}catch(_:Exception){}}
- if(granted){Text("Most-used apps",fontWeight=FontWeight.Bold);u.last24Hours().take(8).forEach{Text(it.packageName.substringAfterLast('.')+"  •  "+it.foregroundMinutes+" min")}}
+ if(granted){
+  val apps=u.last24Hours().take(12)
+  val learning=remember{LearningStore(c)}
+  val ratings=apps.associate{it.packageName to learning.rating(it.packageName)}
+  val report=AttentionAnalyzer().analyze(apps,ratings)
+  val pressure=remember{NotificationPressure(c)}
+  Text("Attention intelligence",fontWeight=FontWeight.Bold)
+  Text(report.totalObservedMinutes.toString()+" foreground minutes observed locally.")
+  report.signals.take(8).forEach{sig->
+   Card{Column(Modifier.fillMaxWidth().padding(14.dp)){
+    Text(sig.packageName.substringAfterLast('.'),fontWeight=FontWeight.Bold)
+    Text("Attention-risk signal: "+sig.score+"/100 • "+sig.minutes+" min • "+pressure.today(sig.packageName)+" notifications today")
+    if(sig.reasons.isNotEmpty()) Text(sig.reasons.joinToString(" • "),color=Color.DarkGray)
+   }}
+  }
+ }
  Text("CARPE does not require these permissions. Granting them should add capability, never unlock basic dignity or usefulness.",color=Green)
 }
 @Composable private fun Me(p:PaddingValues,prefs:android.content.SharedPreferences,a:ActionStore,r:Int)=Page(p,"Your life, not a feed","Set what CARPE should optimize for and review what you actually did."){
