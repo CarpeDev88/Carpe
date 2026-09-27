@@ -100,6 +100,13 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
    }}
   }
  }
+ if(granted){
+  val sessions=remember{SessionIntelligence(c)}.last24Hours().take(6)
+  Text("Reopening patterns",fontWeight=FontWeight.Bold)
+  sessions.forEach{s->
+   Text(s.packageName.substringAfterLast('.')+" • "+s.opens+" opens • "+s.rapidReturns+" rapid returns")
+  }
+ }
  Text("CARPE does not require these permissions. Granting them should add capability, never unlock basic dignity or usefulness.",color=Green)
 }
 @Composable private fun Me(p:PaddingValues,prefs:android.content.SharedPreferences,a:ActionStore,r:Int)=Page(p,"Your life, not a feed","Set what CARPE should optimize for and review what you actually did."){
