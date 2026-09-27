@@ -3,6 +3,9 @@ package app.carpe
 import android.os.Bundle
 import android.content.Context
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -131,6 +134,14 @@ private fun ShieldScreen(p: PaddingValues, context: Context) = Page(p, "Algorith
     }
     val usage = remember { app.carpe.core.UsageAccess(context) }
     var granted by remember { mutableStateOf(usage.isGranted()) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) granted = usage.isGranted()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     Card(onClick = { if (!granted) context.startActivity(usage.settingsIntent()) }, colors=CardDefaults.cardColors(containerColor=Color.White)) {
         Column(Modifier.fillMaxWidth().padding(18.dp)) {
             Row(Modifier.fillMaxWidth()) {
