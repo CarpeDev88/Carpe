@@ -54,8 +54,20 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
 @Composable private fun Coach(p:PaddingValues,prefs:android.content.SharedPreferences,u:UsageAccess,a:ActionStore,r:Int)=Page(p,"CARPE intelligence","Recommendations use only the context you choose to provide. Device usage stays local in this alpha."){
  val names=listOf("More time offline","Fitness & movement","Home cooking","Focused work","Saving money","Less compulsive content")
  val goals=names.filter{prefs.getBoolean("goal_"+it.lowercase().replace(" ","_").replace("&","and"),it=="More time offline"||it=="Focused work")}
- val top=if(u.isGranted())u.last24Hours().take(8) else emptyList()
+ val top=if(u.isGranted())u.last24Hours().take(12) else emptyList()
+ val historyStore=remember{BehaviorHistory(androidx.compose.ui.platform.LocalContext.current)}
+ if(u.isGranted()) historyStore.capture(top,a.todayMinutes())
+ val patterns=PatternEngine().findings(historyStore.recent(),top)
  val suggestions=AiCoach().suggest(CoachContext(a.todayMinutes(),goals,top,a.recent()))
+ Text("What CARPE is noticing",fontWeight=FontWeight.Bold,fontSize=20.sp)
+ patterns.forEach{finding->
+  ElevatedCard{Column(Modifier.fillMaxWidth().padding(16.dp)){
+   Text(finding.title,fontWeight=FontWeight.Bold)
+   Text(finding.evidence)
+   Text("Confidence: "+finding.confidence,color=Green)
+   Text("Try: "+finding.nextStep,color=Color.DarkGray)
+  }}
+ }
  Text("Suggested next moves",fontWeight=FontWeight.Bold,fontSize=20.sp)
  suggestions.forEach{s->Card{Column(Modifier.fillMaxWidth().padding(18.dp)){Text(s.title,fontWeight=FontWeight.Bold);Text(s.reason);Text("Suggested: "+s.minutes+" min",color=Green)}}}
  Text("Why this is AI-assisted",fontWeight=FontWeight.Bold);Text("CARPE combines your explicit goals, your feedback, completed actions, and—only if you grant it—local app-usage patterns. The recommendation engine is designed to optimize for your stated life goals rather than engagement.")
