@@ -7,6 +7,7 @@ app.use(express.json({limit:"64kb"}));
 const PORT=Number(process.env.PORT||8080);
 const GEMINI_API_KEY=process.env.GEMINI_API_KEY||"";
 const GEMINI_MODEL=process.env.GEMINI_MODEL||"gemini-2.5-flash";
+const CARPE_APP_TOKEN=process.env.CARPE_APP_TOKEN||"";
 
 const SYSTEM=`You are CARPE, a user-first AI whose success is measured by whether technology helps the person live the life they deliberately choose—not by engagement.
 Protect autonomy, attention, privacy, time, money, relationships, and long-term goals.
@@ -26,6 +27,7 @@ app.get("/health",(req,res)=>res.json({ok:true,service:"carpe-intelligence",mode
 
 app.post("/v1/ask",async(req,res)=>{
  try{
+  if(CARPE_APP_TOKEN && req.get("Authorization")!==`Bearer ${CARPE_APP_TOKEN}`) return res.status(401).json({error:"Unauthorized"});
   if(!GEMINI_API_KEY)return res.status(503).json({error:"AI provider is not configured"});
   const message=clean(req.body?.message,6000);
   if(!message)return res.status(400).json({error:"message is required"});
