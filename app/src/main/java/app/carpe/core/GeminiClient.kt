@@ -27,7 +27,12 @@ class UserProfileStore(private val context: Context) {
  * are not stored in the APK or SharedPreferences.
  */
 class SecureAiGateway {
- fun ask(message:String, profile:String):String =
-  "Secure cloud AI is being upgraded. CARPE kept your request local. " +
-  "You can still use Focus, Shield, goals, and local recommendations."
+ fun ask(message:String, profile:String):String {
+  // Even before networking is enabled, construct cloud-bound context only through
+  // the allowlist. The profile is intentionally NOT forwarded wholesale.
+  val approved=CloudDataPolicy.sanitize(CloudAiContext(userRequest=message))
+  return "Secure cloud AI is being upgraded. CARPE kept this request local. " +
+   "Your request was classified safely ("+approved.userRequest.length+" characters). " +
+   "You can still use Focus, Shield, cooking guidance, goals, and local recommendations."
+ }
 }
