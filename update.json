@@ -1,6 +1,6 @@
 {
-  "versionCode": 27,
-  "versionName": "0.27.0",
-  "downloadUrl": "https://github.com/CarpeDev88/Carpe/actions/workflows/android.yml",
-  "message": "CARPE v0.27.0 adds a user-triggered AI explanation of aggregate Mirror cues."
+  "versionCode": 28,
+  "versionName": "0.28.0",
+  "downloadUrl": "https://github.com/CarpeDev88/Carpe/releases",
+  "message": "CARPE 0.28.0 checks signed releases on launch and loads usage insights off the UI thread."
 }
