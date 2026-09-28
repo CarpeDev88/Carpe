@@ -1,6 +1,6 @@
 {
-  "versionCode": 13,
-  "versionName": "0.13.0",
+  "versionCode": 14,
+  "versionName": "0.14.0",
   "downloadUrl": "https://github.com/CarpeDev88/Carpe/actions/workflows/android.yml",
-  "message": "CARPE v0.13 test build: Today requests use AI when a gateway is configured, with local guidance when unavailable. Cloud AI is not yet deployed; install updates manually from the latest successful Android workflow artifact."
+  "message": "CARPE v0.14 test build: Set a trusted HTTPS service URL under Me and tap Test AI. Cloud AI requires a deployed backend; install updates manually from the latest successful Android workflow artifact."
 }

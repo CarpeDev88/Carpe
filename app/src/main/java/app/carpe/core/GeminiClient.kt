@@ -33,14 +33,32 @@ interface CarpeAiProvider {
 }
 
 /**
- * Cloud provider endpoint is intentionally supplied at build time and contains no
- * model credential. The endpoint is expected to be a CARPE-owned HTTPS proxy
+ * Cloud provider endpoint contains no model credential. It may be supplied at build
+ * time or set by the user on the device. It must point to a trusted HTTPS proxy
  * (Cloud Run / Firebase Function) which keeps provider credentials server-side.
  */
-class SecureAiGateway(private val endpoint:String = app.carpe.BuildConfig.CARPE_AI_ENDPOINT):CarpeAiProvider {
+class SecureAiGateway(private val context:Context):CarpeAiProvider {
+ companion object {
+  private const val PREFS="carpe_ai_service"
+  private const val ENDPOINT="endpoint"
+  fun validEndpoint(value:String):Boolean = runCatching {
+   val url=URL(value.trim())
+   url.protocol=="https" && !url.host.isNullOrBlank() && url.userInfo==null &&
+    url.query==null && url.ref==null && url.path=="/v1/ask"
+  }.getOrDefault(false)
+  fun configuredEndpoint(context:Context):String =
+   context.getSharedPreferences(PREFS,Context.MODE_PRIVATE).getString(ENDPOINT,"")
+    ?.takeIf(::validEndpoint) ?: app.carpe.BuildConfig.CARPE_AI_ENDPOINT.takeIf(::validEndpoint).orEmpty()
+  fun setEndpoint(context:Context,value:String) {
+   require(validEndpoint(value)){"Enter an HTTPS service URL ending in /v1/ask."}
+   context.getSharedPreferences(PREFS,Context.MODE_PRIVATE).edit().putString(ENDPOINT,value.trim()).apply()
+  }
+  fun clearEndpoint(context:Context) = context.getSharedPreferences(PREFS,Context.MODE_PRIVATE).edit().remove(ENDPOINT).apply()
+ }
  override suspend fun ask(message:String, profile:String, history:List<AiTurn>):Result<String> = withContext(Dispatchers.IO) {
+  val endpoint=configuredEndpoint(context)
   if(endpoint.isBlank()) return@withContext Result.failure(IllegalStateException(
-   "CARPE AI is not configured in this build yet. The app is working, but its secure AI service URL has not been installed."
+   "CARPE AI needs a service URL. Open Me → AI & privacy to connect it."
   ))
   runCatching {
    val body=JSONObject().apply {

@@ -41,3 +41,9 @@ SERVICE_URL="$(gcloud run services describe "$SERVICE" --region "$REGION" --proj
 echo "CARPE_AI_ENDPOINT=${SERVICE_URL}/v1/ask"
 curl --fail --silent --show-error "${SERVICE_URL}/health"
 echo
+echo "Checking a real AI response through the deployed service..."
+curl --fail --silent --show-error --max-time 40 \
+  -H 'Content-Type: application/json' \
+  -d '{"message":"Reply with one short sentence confirming CARPE AI is responding."}' \
+  "${SERVICE_URL}/v1/ask"
+echo
