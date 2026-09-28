@@ -230,6 +230,7 @@ private class ChatSession {
 @Composable private fun Mirror(p:PaddingValues,c:Context,u:UsageAccess)=Page(p,"Algorithm mirror","Inspect visible feed cues, understand what CARPE can observe, and choose what to do next."){
  val auditStore=remember(c){ScreenAuditStore(c)}
  var auditRefresh by remember{mutableIntStateOf(0)}
+ var auditSourceLabel by remember(c){mutableStateOf(auditStore.sourceLabel())}
  val isAuditing=remember(auditRefresh){auditStore.isActive()}
  val auditReport=remember(auditRefresh){auditStore.report()}
  val auditError=remember(auditRefresh){auditStore.error()}
@@ -265,12 +266,15 @@ private class ChatSession {
  Card(colors=CardDefaults.cardColors(containerColor=Peach)){Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
   Text("A short, optional check of what appears on your screen",fontWeight=FontWeight.SemiBold)
   Text("Choose one app if Android offers it; older versions may share your whole screen. Up to 2 minutes, on-device only; images and recognized words are discarded, never sent to AI.",color=Muted,fontSize=13.sp,lineHeight=18.sp)
+  OutlinedTextField(value=auditSourceLabel,onValueChange={auditSourceLabel=it.take(60)},modifier=Modifier.fillMaxWidth(),label={Text("App or feed being reviewed (optional)")},singleLine=true)
+  Text("This label is saved with the local report so you can tell which sample it describes.",color=Muted,fontSize=12.sp)
   TextButton(onClick={showAuditDetails=!showAuditDetails}){Text(if(showAuditDetails)"Hide sample details" else "What this sample can tell me")}
   if(showAuditDetails)Text("CARPE counts visible labels such as Sponsored or Suggested for you and similar text across samples. It cannot reveal the platform’s ranking formula or prove why an item appeared.",color=Muted,fontSize=13.sp,lineHeight=18.sp)
   if(isAuditing){
    Button(onClick={c.startService(Intent(c,ScreenAuditService::class.java).setAction(ScreenAuditIntents.ACTION_STOP))},modifier=Modifier.fillMaxWidth()){Text("Stop screen audit")}
    Text("Audit active • samples are processed locally",color=Orange,fontWeight=FontWeight.SemiBold,fontSize=13.sp)
   }else Button(onClick={
+   auditStore.setSourceLabel(auditSourceLabel)
    auditStore.setError(null)
    auditPending=true
    if(Build.VERSION.SDK_INT>=33&&c.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)
@@ -280,14 +284,14 @@ private class ChatSession {
   if(auditError.isNotBlank())Text(auditError,color=Orange,fontSize=13.sp)
  }}
  if(auditReport!=null){
-  Text("What was visible",fontWeight=FontWeight.Bold,fontSize=19.sp)
+  Text(if(auditReport.sourceLabel.isBlank())"What was visible" else "What was visible in ${auditReport.sourceLabel}",fontWeight=FontWeight.Bold,fontSize=19.sp)
   Card(colors=CardDefaults.cardColors(containerColor=White)){Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(7.dp)){
    Text("${auditReport.sampledScreens} readable screens sampled",fontWeight=FontWeight.SemiBold)
-   Text("Ad or sponsored labels: ${auditReport.adLabelScreens}")
-   Text("Recommendation labels: ${auditReport.recommendationLabelScreens}")
-   Text("Continue or autoplay prompts: ${auditReport.continuePromptScreens}")
-   Text("Screens with similar visible text: ${auditReport.similarScreens}")
-   Text("These counts describe visible text in this sample, not the full feed or the app’s internal ranking. CARPE does not keep the words it reads.",fontSize=12.sp,color=Muted)
+   Text("Ad or sponsored labels: ${cueSummary(auditReport,auditReport.adLabelScreens)}")
+   Text("Recommendation labels: ${cueSummary(auditReport,auditReport.recommendationLabelScreens)}")
+   Text("Continue or autoplay prompts: ${cueSummary(auditReport,auditReport.continuePromptScreens)}")
+   Text("Screens with similar visible text: ${cueSummary(auditReport,auditReport.similarScreens)}")
+   Text("These are counts from this short sample, not the full feed or the app’s internal ranking. A visible label is evidence of wording on screen; similarity can also come from repeated interface text. CARPE does not keep the words it reads.",fontSize=12.sp,color=Muted)
    TextButton(onClick={auditStore.clear();auditRefresh++},enabled=!isAuditing){Text("Clear this report")}
   }}
  }
@@ -350,6 +354,9 @@ private class ChatSession {
  }
  Text("CARPE does not require these permissions. Granting them should add insight, never unlock basic usefulness.",color=Orange)
 }
+private fun cueSummary(report:ScreenAuditReport,count:Int):String =
+ "${count.coerceIn(0,report.sampledScreens)} of ${report.sampledScreens} sampled screens" +
+  (report.percentOfSamples(count)?.let{" ($it%)"} ?: "")
 @Composable private fun Me(p:PaddingValues,prefs:android.content.SharedPreferences,a:ActionStore,r:Int)=Page(p,"Your life, not a feed","Set what CARPE should optimize for and review what you actually did."){
  val context=androidx.compose.ui.platform.LocalContext.current
  val profile=remember{UserProfileStore(context)}
