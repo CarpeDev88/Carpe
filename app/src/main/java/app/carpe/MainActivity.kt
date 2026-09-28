@@ -229,6 +229,12 @@ private class ChatSession {
 }
 @Composable private fun Mirror(p:PaddingValues,c:Context,u:UsageAccess)=Page(p,"Algorithm mirror","Inspect visible feed cues, understand what CARPE can observe, and choose what to do next."){
  val auditStore=remember(c){ScreenAuditStore(c)}
+ val aiKeyStore=remember(c){AiStudioKeyStore(c)}
+ val directAi=remember(c){DirectGeminiProvider(aiKeyStore)}
+ val aiGateway=remember(c){SecureAiGateway(c)}
+ val aiScope=rememberCoroutineScope()
+ var aiAnalysis by remember{mutableStateOf("")}
+ var aiAnalyzing by remember{mutableStateOf(false)}
  var auditRefresh by remember{mutableIntStateOf(0)}
  var auditSourceLabel by remember(c){mutableStateOf(auditStore.sourceLabel())}
  var showAuditLabel by remember{mutableStateOf(auditStore.sourceLabel().isNotBlank())}
@@ -301,6 +307,31 @@ private class ChatSession {
    Text("Screens with similar visible text: ${cueSummary(auditReport,auditReport.similarScreens)}")
    Text("These are counts from this short sample, not the full feed or the app’s internal ranking. A visible label is evidence of wording on screen; similarity can also come from repeated interface text. CARPE does not keep the words it reads.",fontSize=12.sp,color=Muted)
    TextButton(onClick={auditStore.clearReports();auditRefresh++},enabled=!isAuditing){Text("Clear local audit summaries")}
+  }}
+  Card(colors=CardDefaults.cardColors(containerColor=Peach)){Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
+   Text("Optional AI interpretation",fontWeight=FontWeight.SemiBold)
+   Text("Only the aggregate counts above are sent when you tap. No screenshots, recognized words, or app/feed label are included. The sample cannot reveal an app's internal ranking.",fontSize=12.sp,color=Muted,lineHeight=17.sp)
+   Button(onClick={
+    val connected=aiKeyStore.hasKey()||SecureAiGateway.configuredEndpoint(c).isNotBlank()
+    if(!connected){aiAnalysis="Connect AI in Me → AI & privacy to use this optional explanation."}
+    else{
+     aiAnalyzing=true
+     aiAnalysis=""
+     val prompt=ScreenAuditAiPrompt.build(auditReport)
+     aiScope.launch{
+      val provider=if(aiKeyStore.hasKey())directAi else aiGateway
+      provider.ask(prompt,"",emptyList()).fold(
+       onSuccess={aiAnalysis=it},
+       onFailure={aiAnalysis="CARPE couldn't get an AI interpretation: ${it.message ?: "connection failed"}"}
+      )
+      aiAnalyzing=false
+     }
+    }
+   },enabled=!isAuditing&&!aiAnalyzing){Text(if(aiAnalyzing)"Analyzing…" else "Ask AI to interpret these counts")}
+  }}
+  if(aiAnalysis.isNotBlank())Card(colors=CardDefaults.cardColors(containerColor=White)){Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){
+   Text("AI interpretation",fontWeight=FontWeight.SemiBold)
+   Text(aiAnalysis,color=Ink)
   }}
  }
  if(compareSamples && auditComparison!=null){
