@@ -231,7 +231,7 @@ private class ChatSession {
    }}
   }
  }
- Text("How these suggestions work",fontWeight=FontWeight.Bold);Text("These are local rules, not AI-generated advice. They use the goals you selected and, only if you grant access or rate an app, your on-device observations. AI is available separately when you choose to send a request.")
+ Text("How these suggestions work",fontWeight=FontWeight.Bold);Text("These are local rules, not AI-generated advice. They use your selected goals, private action history, and feedback. Usage observations are considered only if you grant Usage Access or rate an app. Coach context stays on this device; AI in Today is separate and sends a request only when you choose Send.")
 }
 @Composable private fun Focus(p:PaddingValues,a:ActionStore,changed:()->Unit)=Page(p,"Focus","A timer that is successful when you stop looking at CARPE."){
  val context=androidx.compose.ui.platform.LocalContext.current
