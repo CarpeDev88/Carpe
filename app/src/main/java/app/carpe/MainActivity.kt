@@ -21,9 +21,6 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.Image
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -161,7 +158,7 @@ private class ChatSession {
    labels.forEachIndexed{i,n->NavigationBarItem(selected=tab==i,onClick={tab=i},icon={Icon(icons[i],contentDescription=n)},label={Text(n)},colors=NavigationBarItemDefaults.colors(selectedIconColor=Orange,selectedTextColor=Orange,indicatorColor=Peach,unselectedIconColor=Muted,unselectedTextColor=Muted))}
   }}){p->
    when(tab){
-    0->Today(p,context,actions,{refresh++},{tab=4},{tab=2},chat,chatScope)
+    0->Today(p,context,actions,{refresh++},{tab=4},{tab=2},chat,chatScope,onExplore={tab=it})
     1->Coach(p,prefs,usage,actions,refresh,onAction={type->
      when(type){
       "focus"->tab=2
@@ -184,10 +181,9 @@ private class ChatSession {
 }
 }
 @Composable private fun Page(p:PaddingValues,title:String,sub:String,body:@Composable ColumnScope.()->Unit){Column(Modifier.fillMaxSize().padding(p).verticalScroll(rememberScrollState()).padding(horizontal=20.dp, vertical=18.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){Text("CARPE",color=Orange,fontWeight=FontWeight.Bold,letterSpacing=3.sp,fontSize=13.sp);Text(title,fontSize=30.sp,fontWeight=FontWeight.Bold,color=Ink);Text(sub,color=Muted,fontSize=15.sp,lineHeight=21.sp);body();Spacer(Modifier.height(30.dp))}}
-@Composable private fun Today(p:PaddingValues,c:Context,s:ActionStore,changed:()->Unit,openSettings:()->Unit,openFocus:()->Unit,chat:ChatSession,scope:CoroutineScope)=Page(p,"What matters now?","Type what you need or use your voice."){
- val composerFocus=remember{FocusRequester()}
- val keyboard=LocalSoftwareKeyboardController.current
+@Composable private fun Today(p:PaddingValues,c:Context,s:ActionStore,changed:()->Unit,openSettings:()->Unit,openFocus:()->Unit,chat:ChatSession,scope:CoroutineScope,onExplore:(Int)->Unit)=Page(p,"What matters now?","Type what you need or use your voice."){
  var showCoachInput by remember{mutableStateOf(false)}
+ var showCoachTour by remember{mutableStateOf(false)}
  var input by chat.input; var response by chat.response; var thinking by chat.thinking
  var lastIntent by chat.lastIntent; var recipeQuery by chat.recipeQuery
  var awaitingCookFollowup by chat.awaitingCookFollowup
@@ -198,7 +194,7 @@ private class ChatSession {
  val directKeyStore=remember{AiStudioKeyStore(c)}
  val directProvider=remember{DirectGeminiProvider(directKeyStore)}
  val profile=remember{UserProfileStore(c)}
- val voice=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()){r->r.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.let{input=it}}
+ val voice=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()){r->r.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.let{input=it;showCoachInput=true}}
  fun speakToCoach(){try{voice.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM).putExtra(RecognizerIntent.EXTRA_PROMPT,"Talk to CARPE"))}catch(_:Exception){response="Voice recognition isn't available on this device."}}
  val router=remember{IntentRouter()}
  val localRecipes=remember(recipeQuery){RecipeCatalog.search(recipeQuery)}
@@ -231,29 +227,41 @@ private class ChatSession {
  }
  if(showCoachInput) AlertDialog(
   onDismissRequest={showCoachInput=false},
-  icon={CoachAvatar(80.dp)},
-  title={Text("Talk with your CARPE coach")},
-  text={Text("Speak or type your message. Review it, then tap Send.")},
-  confirmButton={TextButton(onClick={
-   showCoachInput=false
-   scope.launch{delay(100);composerFocus.requestFocus();keyboard?.show()}
-  }){Text("Type")}},
-  dismissButton={Row{
-   TextButton(onClick={showCoachInput=false;speakToCoach()}){Text("Speak")}
-   TextButton(onClick={showCoachInput=false}){Text("Cancel")}
-  }}
+  icon={CoachAvatar(72.dp)},
+  title={Text("Your CARPE coach")},
+  text={Column(verticalArrangement=Arrangement.spacedBy(12.dp)){
+   Text("What would help you right now? Speak or type, then tap Send.")
+   OutlinedTextField(value=input,onValueChange={input=it},
+    modifier=Modifier.fillMaxWidth().heightIn(min=88.dp),
+    placeholder={Text("Tell me what you need…")},maxLines=5)
+   TextButton(onClick={speakToCoach()}){Text("Speak")}
+   TextButton(onClick={showCoachInput=false;showCoachTour=true}){Text("Show me around CARPE")}
+  }},
+  confirmButton={TextButton(onClick={showCoachInput=false;act()},enabled=input.isNotBlank()&&!thinking){Text("Send")}},
+  dismissButton={TextButton(onClick={showCoachInput=false}){Text("Close")}}
  )
- ElevatedCard(onClick={showCoachInput=true},colors=CardDefaults.elevatedCardColors(containerColor=Peach)){
-  Row(Modifier.fillMaxWidth().padding(12.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)){
-   CoachAvatar(84.dp)
-   Column(Modifier.weight(1f)){
-    Text("Your CARPE coach",fontWeight=FontWeight.Bold,fontSize=19.sp,color=Ink)
-    Text(if(thinking)"Working on your request…" else "Small steps. Your direction. Tap me to speak or type.",color=Muted,lineHeight=21.sp)
+ Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally){
+  IconButton(onClick={showCoachInput=true},modifier=Modifier.size(128.dp)){
+   CoachAvatar(120.dp)
+  }
+  Text("Your CARPE coach",fontWeight=FontWeight.Bold,fontSize=19.sp,color=Ink)
+  Text(if(thinking)"Working on your request…" else "Tap me to speak or type.",color=Muted,lineHeight=21.sp)
+  if(input.isNotBlank())Text("Your draft is ready. Tap me to review and send.",fontSize=13.sp,color=Orange)
+ }
+ if(showCoachTour){
+  Card(colors=CardDefaults.cardColors(containerColor=Peach)){
+   Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
+    Text("Let’s find what helps you.",fontWeight=FontWeight.Bold,fontSize=19.sp)
+    Text("You choose where to start. These tools work without connecting AI.")
+    TextButton(onClick={showCoachTour=false;onExplore(2)}){Text("Focus — make time for one thing")}
+    TextButton(onClick={showCoachTour=false;onExplore(3)}){Text("Mirror — explore technology-use patterns")}
+    TextButton(onClick={showCoachTour=false;onExplore(4)}){Text("Me — choose my goals and preferences")}
+    TextButton(onClick={showCoachTour=false;onExplore(1)}){Text("Coach — explore suggested next steps")}
+    Text("You can also ask me about cooking, movement, or deliberate spending. AI is optional; local suggestions are more limited.",color=Muted,fontSize=13.sp)
+    TextButton(onClick={showCoachTour=false}){Text("Close guide")}
    }
   }
  }
- OutlinedTextField(value=input,onValueChange={input=it},modifier=Modifier.focusRequester(composerFocus).fillMaxWidth().heightIn(min=88.dp),placeholder={Text("Ask CARPE anything…")},maxLines=6)
- Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)){OutlinedButton(onClick={speakToCoach()},modifier=Modifier.weight(1f)){Text("Speak")};Button(onClick={act()},enabled=!thinking,modifier=Modifier.weight(1f)){Text(if(thinking)"Thinking…" else "Send")}}
  Card(colors=CardDefaults.cardColors(containerColor=Peach)){Row(Modifier.fillMaxWidth().padding(horizontal=14.dp, vertical=8.dp),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text(if(!directKeyStore.hasKey() && SecureAiGateway.configuredEndpoint(c).isBlank())"AI is optional" else "AI connection ready",fontWeight=FontWeight.SemiBold,color=Ink,fontSize=13.sp);Text(if(!directKeyStore.hasKey() && SecureAiGateway.configuredEndpoint(c).isBlank())"Local guidance works without connecting." else "Only the current request is sent when you choose Send.",fontSize=12.sp,color=Muted)};TextButton(onClick=openSettings){Text(if(!directKeyStore.hasKey() && SecureAiGateway.configuredEndpoint(c).isBlank())"Connect" else "Details")}}}
  if(directKeyStore.hasKey()) Text("Google AI Studio may use free-tier prompts to improve Google products. Avoid sensitive details. Earlier chat turns and captured screen samples are never included.",color=Muted,fontSize=12.sp)
  if(response.isNotBlank()) ElevatedCard{
