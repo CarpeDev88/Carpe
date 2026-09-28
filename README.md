@@ -26,9 +26,11 @@ APK output: `app/build/outputs/apk/debug/app-debug.apk`.
 
 ## Status
 
-v0.17 Android alpha. Today offers actionable local guidance and recipe search without an AI service. Cooking follow-up context is limited to one unclassified reply so unrelated requests do not get misrouted. Coach uses local goals and optional usage access, Focus keeps its countdown across tab switches and app reopen, and Shield lets the user rate apps as helpful, mixed, or distracting. These features are a prototype; CARPE does not yet block other apps or alter their feeds.
+v0.18 Android alpha. Today offers actionable local guidance and recipe search without an AI service. Cooking follow-up context is limited to one unclassified reply so unrelated requests do not get misrouted. Coach uses local goals and optional usage access, Focus keeps its countdown across tab switches and app reopen, and Shield lets the user rate apps as helpful, mixed, or distracting. These features are a prototype; CARPE does not yet block other apps or alter their feeds.
 
-Cloud conversation requires a deployed backend. In Google Cloud Shell, from this repository on `main`, run `bash deploy-carpe.sh`. It prints an HTTPS `/v1/ask` URL after a real provider test. Paste that URL in **Me → AI & privacy** in the app, save, and tap **Test AI**. Project billing must be linked before Cloud Run can deploy.
+AI connection without a CARPE server: open **Me → AI & privacy**, use **Get a Gemini API key in AI Studio**, create a key, paste it into CARPE, save it, and tap **Test AI**. The direct connection uses Google AI Studio's free-tier Gemini API and does not need Cloud Run or linked Cloud billing. Free-tier quotas apply, and Google may use free-tier prompts to improve its products. Don't send sensitive details. CARPE encrypts the key with Android Keystore, but client-side keys can still be extracted; this setup is intended for private testing. For a shared/public release, use a trusted backend proxy that keeps provider keys server-side.
+
+An optional trusted CARPE service can still be configured in **Me → AI & privacy** using an HTTPS `/v1/ask` URL. To deploy the included Cloud Run backend, run `bash deploy-carpe.sh` from Google Cloud Shell; Cloud Run requires linked project billing.
 
 APK updates are currently manual. GitHub Actions debug builds may use different signing keys, so Android can refuse an in-place update; uninstalling an older debug build may erase its local app data. A stable private signing key and distribution channel are required before automatic updates are enabled.
 
