@@ -53,7 +53,7 @@ class UserGoalStore(context: Context) {
             createdAt = System.currentTimeMillis()
         )
         val updated = goals() + goal
-        prefs.edit().putString(KEY_GOALS, updated.toJson().toString()).apply()
+        prefs.edit().putString(KEY_GOALS, updated.goalsToJson().toString()).apply()
         return goal
     }
 
@@ -65,8 +65,8 @@ class UserGoalStore(context: Context) {
 
     fun removeGoal(goalId: String) {
         prefs.edit()
-            .putString(KEY_GOALS, goals().filterNot { it.id == goalId }.toJson().toString())
-            .putString(KEY_CHECK_INS, allCheckIns().filterNot { it.goalId == goalId }.toJson().toString())
+            .putString(KEY_GOALS, goals().filterNot { it.id == goalId }.goalsToJson().toString())
+            .putString(KEY_CHECK_INS, allCheckIns().filterNot { it.goalId == goalId }.checkInsToJson().toString())
             .apply()
     }
 
@@ -75,7 +75,7 @@ class UserGoalStore(context: Context) {
         (0 until items.length()).mapNotNull { index -> items.optJSONObject(index)?.toCheckIn() }
     }.getOrDefault(emptyList())
 
-    private fun List<UserGoal>.toJson() = JSONArray().also { array ->
+    private fun List<UserGoal>.goalsToJson() = JSONArray().also { array ->
         forEach { goal ->
             array.put(JSONObject().apply {
                 put("id", goal.id)
@@ -86,7 +86,7 @@ class UserGoalStore(context: Context) {
         }
     }
 
-    private fun List<GoalCheckIn>.toJson() = JSONArray().also { array ->
+    private fun List<GoalCheckIn>.checkInsToJson() = JSONArray().also { array ->
         forEach { checkIn ->
             array.put(JSONObject().apply {
                 put("goalId", checkIn.goalId)
