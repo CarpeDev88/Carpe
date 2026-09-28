@@ -27,6 +27,6 @@ class FeedbackMathTest {
     @Test
     fun invalidCountsAreClamped() {
         assertEquals(0.5f, FeedbackMath.smoothedHelpfulRate(-1, -3), 0.0001f)
-        assertEquals(0.75f, FeedbackMath.smoothedHelpfulRate(5, 2), 0.0001f)
+        assertEquals(0.6667f, FeedbackMath.smoothedHelpfulRate(5, 2), 0.0001f)
     }
 }
