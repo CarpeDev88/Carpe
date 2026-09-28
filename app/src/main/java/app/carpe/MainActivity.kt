@@ -23,7 +23,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.carpe.core.*
-import java.net.URLEncoder
 
 private val Cream=Color(0xFFF5F1E8); private val Green=Color(0xFF355E48)
 class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.onCreate(b);setContent{CarpeApp()}}}
@@ -51,7 +50,7 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
  val profile=remember{UserProfileStore(c)}
  val voice=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()){r->r.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.let{input=it}}
  fun act(){val q=input.trim();if(q.isBlank()||thinking)return;profile.learn(q);response=when{
-  q.contains("cook",true)||q.contains("recipe",true)||q.contains("dinner",true)->{val search=URLEncoder.encode(q,"UTF-8");try{c.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://www.google.com/search?q="+search)))}catch(_:Exception){};"Opening a recipe search. Choose something you actually want to make."}
+  q.contains("cook",true)||q.contains("recipe",true)||q.contains("dinner",true)||q.contains("meal",true)||q.contains("ingredient",true)->SecureAiGateway().ask("Act as CARPE cooking coach. Keep the user inside CARPE. Give practical recipe ideas based on their request, ingredients, budget, time, dietary needs, and skill level. Prefer home cooking over ordering food. Ask one useful follow-up question when needed. User request: "+q,profile.summary())
   q.contains("focus",true)||q.contains("work",true)->"Use the Focus tab for a protected 25-minute block. CARPE's goal is to help you put the phone down."
   q.contains("walk",true)||q.contains("workout",true)||q.contains("exercise",true)||q.contains("move",true)->"Choose a small movement you can start now. Ten to fifteen minutes is enough to break the loop."
   q.contains("buy",true)||q.contains("spend",true)||q.contains("save",true)->"Pause the purchase. Ask what problem it solves, whether you already own an alternative, and whether waiting 24 hours changes the decision."
@@ -61,7 +60,7 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
  Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)){OutlinedButton(onClick={try{voice.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM).putExtra(RecognizerIntent.EXTRA_PROMPT,"Talk to CARPE"))}catch(_:Exception){response="Voice recognition isn't available on this device."}},modifier=Modifier.weight(1f)){Text("🎤  Speak")};Button(onClick={act()},enabled=!thinking,modifier=Modifier.weight(1f)){Text(if(thinking)"Thinking…" else "Send")}}
  if(response.isNotBlank()) ElevatedCard{Text(response,Modifier.fillMaxWidth().padding(16.dp))}
  Text("Suggestions",fontSize=18.sp,fontWeight=FontWeight.Bold)
- ActionCard("Cook something","Search recipes and make a meal."){input="Find me something healthy to cook for dinner"}
+ ActionCard("Cook something","Tell CARPE what you have, what sounds good, your budget, or how much time you have."){input="Help me cook something. Ask me what ingredients I have, what sounds good, and how much time I have."}
  ActionCard("Move your body","Walk, train, stretch, or get outside."){input="Help me move my body today"}
  ActionCard("Do meaningful work","Start a protected focus block."){input="Help me focus on meaningful work"}
  ActionCard("Spend deliberately","Pause before a non-essential purchase."){input="Help me make a deliberate spending decision"}
