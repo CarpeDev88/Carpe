@@ -235,7 +235,6 @@ private class ChatSession {
  val isAuditing=remember(auditRefresh){auditStore.isActive()}
  val auditReport=remember(auditRefresh){auditStore.report()}
  val auditError=remember(auditRefresh){auditStore.error()}
- var showAuditDetails by remember{mutableStateOf(false)}
  var auditPending by remember{mutableStateOf(false)}
  LaunchedEffect(isAuditing,auditPending){
   if(!isAuditing&&!auditPending)return@LaunchedEffect
@@ -266,11 +265,9 @@ private class ChatSession {
  Text("Visible feed sample",fontWeight=FontWeight.Bold,fontSize=21.sp,color=Ink)
  Card(colors=CardDefaults.cardColors(containerColor=Peach)){Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
   Text("A short, optional check of what appears on your screen",fontWeight=FontWeight.SemiBold)
-  Text("Choose one app if Android offers it; older versions may share your whole screen. Up to 2 minutes, on-device only; images and recognized words are discarded, never sent to AI.",color=Muted,fontSize=13.sp,lineHeight=18.sp)
+  Text("Choose one app if available; older Android may share the whole screen. Up to 2 minutes, on-device only. Images and recognized words are discarded, never sent to AI.",color=Muted,fontSize=13.sp,lineHeight=18.sp)
   if(showAuditLabel)OutlinedTextField(value=auditSourceLabel,onValueChange={auditSourceLabel=it.take(60)},modifier=Modifier.fillMaxWidth(),label={Text("App/feed label (optional)")},singleLine=true)
   else TextButton(onClick={showAuditLabel=true}){Text("Add an app label (optional)")}
-  TextButton(onClick={showAuditDetails=!showAuditDetails}){Text(if(showAuditDetails)"Hide sample details" else "What this sample can tell me")}
-  if(showAuditDetails)Text("CARPE counts visible labels such as Sponsored or Suggested for you and similar text across samples. It cannot reveal the platform’s ranking formula or prove why an item appeared.",color=Muted,fontSize=13.sp,lineHeight=18.sp)
   if(isAuditing){
    Button(onClick={c.startService(Intent(c,ScreenAuditService::class.java).setAction(ScreenAuditIntents.ACTION_STOP))},modifier=Modifier.fillMaxWidth()){Text("Stop screen audit")}
    Text("Audit active • samples are processed locally",color=Orange,fontWeight=FontWeight.SemiBold,fontSize=13.sp)
