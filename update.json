@@ -1,6 +1,6 @@
 {
-  "versionCode": 5,
-  "versionName": "0.5.0",
+  "versionCode": 13,
+  "versionName": "0.13.0",
   "downloadUrl": "https://github.com/CarpeDev88/Carpe/actions/workflows/android.yml",
-  "message": "CARPE v0.5 testing release: Coach pattern learning, usage intelligence, notification pressure, reopening analysis, focus sessions, goals, action history, privacy controls, and new identity."
+  "message": "CARPE v0.13 test build: Today requests use AI when a gateway is configured, with local guidance when unavailable. Cloud AI is not yet deployed; install updates manually from the latest successful Android workflow artifact."
 }
