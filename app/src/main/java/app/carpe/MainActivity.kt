@@ -6,6 +6,9 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
+import android.speech.RecognizerIntent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
@@ -42,12 +45,18 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
  }
 }
 @Composable private fun Page(p:PaddingValues,title:String,sub:String,body:@Composable ColumnScope.()->Unit){Column(Modifier.fillMaxSize().padding(p).verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){Text("CARPE",color=Green,fontWeight=FontWeight.Bold,letterSpacing=3.sp);Text(title,fontSize=32.sp,fontWeight=FontWeight.Bold);Text(sub,color=Color.DarkGray);body();Spacer(Modifier.height(30.dp))}}
-@Composable private fun Today(p:PaddingValues,c:Context,s:ActionStore,changed:()->Unit)=Page(p,"Own your attention.","Choose an action that improves life outside this app."){
- Text("Choose what happens next",fontSize=20.sp,fontWeight=FontWeight.Bold)
- ActionCard("Cook something","Search recipes and make a meal."){s.add("cook","Cooked something",30);changed();val q=URLEncoder.encode("healthy easy home cooking recipes","UTF-8");c.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://www.google.com/search?q="+q)))}
- ActionCard("Move your body","Walk, train, stretch, or get outside."){s.add("move","Movement",15);changed()}
- ActionCard("Do meaningful work","Start a protected 25-minute focus block."){s.add("focus","Meaningful work",25);changed()}
- ActionCard("Spend deliberately","Use a pause before a non-essential purchase."){s.add("save","Purchase pause",5);changed()}
+@Composable private fun Today(p:PaddingValues,c:Context,s:ActionStore,changed:()->Unit)=Page(p,"What do you want to do right now?","Tell CARPE what you need. Type naturally or use your voice."){
+ var input by remember{mutableStateOf("")}; var response by remember{mutableStateOf("")}
+ val voice=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()){r->r.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.let{input=it}}
+ fun act(){val q=input.trim();if(q.isBlank())return;response=when{q.contains("cook",true)||q.contains("dinner",true)||q.contains("recipe",true)->"Let's find something worth cooking. I've opened a recipe search.";q.contains("walk",true)||q.contains("workout",true)||q.contains("exercise",true)||q.contains("move",true)->"Start with 15 minutes of movement. The goal is to leave CARPE behind.";q.contains("focus",true)||q.contains("work",true)->"Let's protect 25 minutes for meaningful work. Open Focus when you're ready.";q.contains("buy",true)||q.contains("spend",true)||q.contains("money",true)||q.contains("save",true)->"Before spending, pause and ask whether the purchase serves a goal you chose.";else->"I heard you. CARPE is learning to turn open-ended requests into useful actions instead of forcing you through menus."};if(q.contains("cook",true)||q.contains("dinner",true)||q.contains("recipe",true)){val search=URLEncoder.encode(q,"UTF-8");c.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://www.google.com/search?q="+search)))}}
+ OutlinedTextField(value=input,onValueChange={input=it},modifier=Modifier.fillMaxWidth().heightIn(min=120.dp),placeholder={Text("Ask CARPE anything…")},maxLines=6)
+ Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)){OutlinedButton(onClick={try{voice.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM).putExtra(RecognizerIntent.EXTRA_PROMPT,"Talk to CARPE"))}catch(_:Exception){response="Voice recognition isn't available on this device."}},modifier=Modifier.weight(1f)){Text("🎤  Speak")};Button(onClick={act()},modifier=Modifier.weight(1f)){Text("Send")}}
+ if(response.isNotBlank()) ElevatedCard{Text(response,Modifier.fillMaxWidth().padding(16.dp))}
+ Text("Suggestions",fontSize=18.sp,fontWeight=FontWeight.Bold)
+ ActionCard("Cook something","Search recipes and make a meal."){input="Find me something healthy to cook for dinner"}
+ ActionCard("Move your body","Walk, train, stretch, or get outside."){input="Help me move my body today"}
+ ActionCard("Do meaningful work","Start a protected focus block."){input="Help me focus on meaningful work"}
+ ActionCard("Spend deliberately","Pause before a non-essential purchase."){input="Help me make a deliberate spending decision"}
  Text("CARPE counts completed offline actions, not time spent inside CARPE.",color=Green,fontWeight=FontWeight.Medium)
 }
 @Composable private fun ActionCard(t:String,d:String,on:()->Unit){ElevatedCard(onClick=on){Column(Modifier.fillMaxWidth().padding(18.dp)){Text(t,fontWeight=FontWeight.Bold,fontSize=18.sp);Text(d,color=Color.DarkGray)}}}
@@ -115,5 +124,5 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
  goals.forEach{g->val k="goal_"+g.lowercase().replace(" ","_").replace("&","and");var on by remember{mutableStateOf(prefs.getBoolean(k,g=="More time offline"||g=="Focused work"))};Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text(g,Modifier.weight(1f));Switch(on,{on=it;prefs.edit().putBoolean(k,it).apply()})}}
  HorizontalDivider();Text(a.todayMinutes().toString()+" minutes invested in deliberate actions",fontSize=22.sp,fontWeight=FontWeight.Bold)
  a.recent(8).forEach{Text("• "+it.title+" — "+it.minutes+" min")}
- Text("CARPE v0.3 alpha",color=Green,fontWeight=FontWeight.Bold)
+ Text("CARPE v0.6 alpha",color=Green,fontWeight=FontWeight.Bold)
 }
