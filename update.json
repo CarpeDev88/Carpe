@@ -1,6 +1,6 @@
 {
-  "versionCode": 20,
-  "versionName": "0.20.0",
+  "versionCode": 21,
+  "versionName": "0.21.0",
   "downloadUrl": "https://github.com/CarpeDev88/Carpe/actions/workflows/android.yml",
-  "message": "CARPE v0.20.0: audit refresh runs only during startup and active sessions; stopped samples cannot alter another audit report."
+  "message": "CARPE v0.21.0: cooking and recipe search now stay inside CARPE with offline ingredient and time matching."
 }

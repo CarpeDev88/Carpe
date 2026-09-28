@@ -21,9 +21,9 @@ object LocalAssistant {
                 !details.contains("what i have", ignoreCase = true)) ||
             details.contains("ingredients are", ignoreCase = true)
         return if (hasDetails) {
-            "With those ingredients, start by choosing a simple method that fits them: roast or sauté vegetables, cook any grain or pasta separately, and add a protein if you have one. Season, taste, and adjust as you go. For a recipe matched to the exact ingredients, time, budget, or dietary needs, tap Find recipes to search the web. What cooking time and equipment do you have?"
+            "With those ingredients, start by choosing a simple method that fits them: roast or sauté vegetables, cook any grain or pasta separately, and add a protein if you have one. Season, taste, and adjust as you go. Here are a few matching starter ideas below. What cooking time and equipment do you have? The matches stay on this device."
         } else {
-            "Tell me what ingredients you have, plus any time limit, budget, dietary needs, or cooking equipment that matter. I can help you narrow it down here; tap Find recipes to search the web for recipes using your request."
+            "Tell me what ingredients you have, plus any time limit, budget, dietary needs, or cooking equipment that matter. CARPE will show matching starter recipes below and works offline."
         }
     }
 }

@@ -12,8 +12,8 @@ android {
         applicationId = "app.carpe"
         minSdk = 26
         targetSdk = 35
-        versionCode = 20
-        versionName = "0.20.0"
+        versionCode = 21
+        versionName = "0.21.0"
         val aiEndpoint = project.findProperty("CARPE_AI_ENDPOINT")?.toString() ?: ""
         buildConfigField("String", "CARPE_AI_ENDPOINT", "\"${aiEndpoint}\"")
     }
