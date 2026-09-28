@@ -59,3 +59,12 @@ Product constraints:
 - Success is measured by technology serving the user's life, including when the best outcome is spending less time in Carpe itself.
 
 Outcome measures are voluntary user check-ins and whether technology use matched the user's intention. CARPE does not use its own screen time, retention, streaks, or session counts as success measures. See [Outcome measurement](docs/OUTCOME_MEASUREMENT.md).
+
+
+## Automatic Android updates
+
+CARPE checks for a newer signed release after launch without blocking offline use. When one is available, choose Update to download it, verify its SHA-256 checksum and package signature, then approve installation in Android's system installer. CARPE never installs silently. If Android's Install unknown apps setting is off for CARPE, the app explains why it needs that setting and lets you decline.
+
+Debug APKs from GitHub Actions are for testing and are not the update channel. Stable in-place updates require one persistent release signing key. Configure these GitHub Actions secrets once: CARPE_SIGNING_KEYSTORE_BASE64, CARPE_SIGNING_KEYSTORE_PASSWORD, CARPE_SIGNING_KEY_ALIAS, and CARPE_SIGNING_KEY_PASSWORD. Do not commit the keystore or passwords. Keep a secure offline backup of the keystore; losing it prevents future in-place updates.
+
+The current v0.27.0 debug APK was signed differently from v0.26.0. The updater checks signer identity and will refuse an incompatible APK without removing the installed app or its local data. Moving from the existing debug install to the first stable release therefore needs a one-time migration plan; do not uninstall CARPE until local data export/import is available. Once the same-signed release channel is installed, later updates use Android's user-approved installer flow.
