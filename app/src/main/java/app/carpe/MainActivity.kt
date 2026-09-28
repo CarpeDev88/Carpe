@@ -68,7 +68,10 @@ class MainActivity:ComponentActivity(){
    updateCheckStarted=true
    lifecycleScope.launch {
     val update=CarpeUpdates.checkForUpdate(BuildConfig.VERSION_NAME)
-    if(update!=null && !isFinishing && !isDestroyed) offerUpdate(update)
+    if(update!=null && !isFinishing && !isDestroyed){
+     val updatePrefs=getSharedPreferences("carpe_updates",Context.MODE_PRIVATE)
+     if(System.currentTimeMillis()>=updatePrefs.getLong("snooze_until",0L)) offerUpdate(update)
+    }
    }
   }
  }
@@ -77,7 +80,7 @@ class MainActivity:ComponentActivity(){
    .setTitle("CARPE "+update.version+" is available")
    .setMessage("CARPE will download the verified update. Android will ask you to approve installation. You can keep using the app if you choose Later.")
    .setPositiveButton("Update"){_,_->prepareUpdate(update)}
-   .setNegativeButton("Later",null)
+   .setNegativeButton("Later"){_,_->getSharedPreferences("carpe_updates",Context.MODE_PRIVATE).edit().putLong("snooze_until",System.currentTimeMillis()+24L*60L*60L*1000L).apply()}
    .show()
  }
  private fun prepareUpdate(update:CarpeUpdate){
@@ -107,7 +110,7 @@ class MainActivity:ComponentActivity(){
      .setMessage(error.message?: "CARPE could not download this update. The current app and its data were left in place.")
      .setPositiveButton("OK",null)
      .show()
-   }finally{progress.dismiss()}
+   }finally{if(progress.isShowing)progress.dismiss()}
   }
  }
 }
