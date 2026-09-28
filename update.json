@@ -1,6 +1,6 @@
 {
-  "versionCode": 16,
-  "versionName": "0.16.0",
+  "versionCode": 17,
+  "versionName": "0.17.0",
   "downloadUrl": "https://github.com/CarpeDev88/Carpe/actions/workflows/android.yml",
-  "message": "CARPE v0.16 test build: Offline guidance and recipe search work without a backend. Cloud AI needs a deployed service URL under Me → AI & privacy. Updates are installed manually."
+  "message": "CARPE v0.17 test build: More useful offline guidance and corrected cooking follow-up routing. Cloud AI needs a deployed service URL under Me → AI & privacy. Updates are installed manually."
 }
