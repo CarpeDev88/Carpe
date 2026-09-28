@@ -87,7 +87,7 @@ private class ChatSession {
     }
     2->Focus(p,actions){refresh++}
     3->Mirror(p,context,usage)
-    else->Me(p,prefs,actions,refresh)
+    else->Me(p,prefs,actions,refresh){refresh++}
    }
   }
  }
@@ -377,7 +377,7 @@ private class ChatSession {
 private fun cueSummary(report:ScreenAuditReport,count:Int):String =
  "${count.coerceIn(0,report.sampledScreens)} of ${report.sampledScreens} sampled screens" +
   (report.percentOfSamples(count)?.let{" ($it%)"} ?: "")
-@Composable private fun Me(p:PaddingValues,prefs:android.content.SharedPreferences,a:ActionStore,r:Int)=Page(p,"Your life, not a feed","Set what CARPE should optimize for and review what you actually did."){
+@Composable private fun Me(p:PaddingValues,prefs:android.content.SharedPreferences,a:ActionStore,r:Int,changed:()->Unit)=Page(p,"Your life, not a feed","Set what CARPE should optimize for and review what you actually did."){
  val context=androidx.compose.ui.platform.LocalContext.current
  val profile=remember{UserProfileStore(context)}
  var aiProfile by remember{mutableStateOf(profile.enabled())}
@@ -431,6 +431,32 @@ private fun cueSummary(report:ScreenAuditReport,count:Int):String =
  HorizontalDivider()
  val goals=listOf("More time offline","Fitness & movement","Home cooking","Focused work","Saving money","Less compulsive content")
  goals.forEach{g->val k="goal_"+g.lowercase().replace(" ","_").replace("&","and");var on by remember{mutableStateOf(prefs.getBoolean(k,g=="More time offline"||g=="Focused work"))};Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text(g,Modifier.weight(1f));Switch(on,{on=it;prefs.edit().putBoolean(k,it).apply()})}}
+ HorizontalDivider()
+ Text("Your own goals",fontWeight=FontWeight.Bold,fontSize=20.sp)
+ Text("Choose a goal that matters to you. Check-ins stay on this device; CARPE uses no streaks, reminders, or leaderboard.",color=Muted,fontSize=13.sp,lineHeight=18.sp)
+ val userGoalStore=remember(context){UserGoalStore(context)}
+ var userGoals by remember(r){mutableStateOf(userGoalStore.goals())}
+ var goalTitle by remember{mutableStateOf("")}
+ var goalTarget by remember{mutableStateOf("3")}
+ OutlinedTextField(value=goalTitle,onValueChange={goalTitle=it.take(100)},modifier=Modifier.fillMaxWidth(),label={Text("A goal in your own words")},placeholder={Text("e.g. Walk after dinner")},singleLine=true)
+ Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp),verticalAlignment=Alignment.CenterVertically){
+  OutlinedTextField(value=goalTarget,onValueChange={goalTarget=it.filter(Char::isDigit).take(1)},modifier=Modifier.width(110.dp),label={Text("Times / week")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),singleLine=true)
+  Button(onClick={
+   val added=userGoalStore.addGoal(goalTitle,goalTarget.toIntOrNull()?:3)
+   if(added!=null){goalTitle="";userGoals=userGoalStore.goals();changed()}
+  },enabled=goalTitle.isNotBlank()){Text("Add goal")}
+ }
+ userGoals.forEach{goal->
+  val count=GoalProgress.countWithinDays(userGoalStore.checkIns(goal.id),7,System.currentTimeMillis())
+  Card(colors=CardDefaults.cardColors(containerColor=White)){Column(Modifier.fillMaxWidth().padding(14.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){
+   Text(goal.title,fontWeight=FontWeight.SemiBold,fontSize=16.sp,color=Ink)
+   Text("$count of ${goal.weeklyTarget} planned check-ins in the last 7 days",color=Muted,fontSize=13.sp)
+   Row(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically){
+    Button(onClick={userGoalStore.checkIn(goal.id);changed()}){Text("Log a step")}
+    TextButton(onClick={userGoalStore.removeGoal(goal.id);userGoals=userGoalStore.goals();changed()}){Text("Remove")}
+   }
+  }}
+ }
  HorizontalDivider();Text(a.todayMinutes().toString()+" minutes invested in deliberate actions",fontSize=22.sp,fontWeight=FontWeight.Bold)
  a.recent(8).forEach{Text("• "+it.title+" — "+it.minutes+" min")}
  var confirmErase by remember{mutableStateOf(false)}
@@ -440,7 +466,7 @@ private fun cueSummary(report:ScreenAuditReport,count:Int):String =
   title={Text("Erase local data?")},
   text={Text("This removes your goals, ratings, action history, AI profile, service URL, and focus session from this device. Android permissions remain managed in system settings.")},
   confirmButton={TextButton(onClick={
-   listOf("carpe","carpe_actions","carpe_ai_profile","carpe_ai_service","behavior_history","notification_pressure","carpe_learning","carpe_focus","carpe_screen_audit").forEach{name->
+   listOf("carpe","carpe_actions","carpe_ai_profile","carpe_ai_service","behavior_history","notification_pressure","carpe_learning","carpe_focus","carpe_screen_audit","carpe_goals").forEach{name->
     context.getSharedPreferences(name,Context.MODE_PRIVATE).edit().clear().commit()
    }
    keyStore.clear()
