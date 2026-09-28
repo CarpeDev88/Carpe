@@ -654,6 +654,7 @@ private fun cueSummary(report:ScreenAuditReport,count:Int):String =
  var answer by remember{mutableStateOf("")}
  BackHandler(enabled=step>0){step--;answer=""}
  Scaffold(containerColor=WarmWhite){padding->
+  key(step){
   Page(padding,
    when(step){0->"Welcome to CARPE";1->"A moment for you";else->"Start with what matters"},
    when(step){0->"Technology should serve your life.";1->"There is no right or wrong answer.";else->"One small starting point. You can change direction anytime."}){
@@ -699,6 +700,7 @@ private fun cueSummary(report:ScreenAuditReport,count:Int):String =
     TextButton(onClick={onFinish("today")},modifier=Modifier.fillMaxWidth()){Text("Just explore CARPE")}
     TextButton(onClick={step=1;answer=""}){Text("Back")}
    }
+  }
   }
  }
 }
