@@ -24,6 +24,6 @@ class AiCoach {
   if(out.isEmpty()) out+=CoachSuggestion("Choose one deliberate action","CARPE does not have enough context to infer what would help. You stay in control.","choose",10)
 
   fun intent(type:String)=when(type){"cook"->CarpeIntent.COOK;"focus"->CarpeIntent.FOCUS;"move"->CarpeIntent.MOVE;"save"->CarpeIntent.SPEND;else->CarpeIntent.UNKNOWN}
-  return out.sortedByDescending{s->learning?.helpfulRate(intent(s.actionType)) ?: .5f}.take(3)
+  return out.sortedByDescending{s->learning?.recommendationScore(intent(s.actionType)) ?: .5f}.take(3)
  }
 }
