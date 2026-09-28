@@ -29,7 +29,7 @@ class AiCoach {
   if(c.goals.any{it.equals("Reduce porn use",true)})
    out+=CoachSuggestion("Make a private pause plan","You chose this goal. CARPE does not monitor browsing or viewing content; you decide what support would help.","content_plan",5)
   if(c.goals.any{it.equals("Think across political viewpoints",true)})
-   out+=CoachSuggestion("Compare good-faith viewpoints","You chose this goal. Pick one issue and examine strong arguments from more than one perspective.","perspectives",5)
+   out+=CoachSuggestion("Compare good-faith viewpoints","You chose this goal. Pick one issue and examine strong good-faith arguments from more than one perspective.","perspectives",5)
   if(out.isEmpty()) out+=CoachSuggestion("Choose one deliberate action","CARPE does not have enough context to infer what would help. You stay in control.","choose",10)
 
   fun intent(type:String)=when(type){"cook"->CarpeIntent.COOK;"focus"->CarpeIntent.FOCUS;"move"->CarpeIntent.MOVE;"save"->CarpeIntent.SPEND;"content_plan","perspectives"->CarpeIntent.REFLECT;else->CarpeIntent.UNKNOWN}
