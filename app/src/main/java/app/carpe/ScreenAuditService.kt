@@ -38,7 +38,7 @@ object ScreenAuditIntents {
 class ScreenAuditService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private val store by lazy { ScreenAuditStore(this) }
-    private val analyzer = ScreenAuditAnalyzer()
+    private var analyzer = ScreenAuditAnalyzer()
     private val recognizerLazy = lazy { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
     private val recognizer by recognizerLazy
     private var projection: MediaProjection? = null
@@ -48,6 +48,7 @@ class ScreenAuditService : Service() {
     private var stopped = false
     private var sampleCount = 0
     private var stopAt = 0L
+    private var sessionGeneration = 0
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -86,6 +87,9 @@ class ScreenAuditService : Service() {
             ) ?: error("Screen capture display could not start.")
 
             stopped = false
+            sessionGeneration++
+            analyzer = ScreenAuditAnalyzer()
+            processing = false
             sampleCount = 0
             stopAt = SystemClock.elapsedRealtime() + MAX_SESSION_MILLIS
             store.setActive(true)
@@ -112,6 +116,8 @@ class ScreenAuditService : Service() {
     private val sessionTimeout = Runnable { stopAudit() }
 
     private fun analyzeImage(image: Image) {
+        val generation = sessionGeneration
+        val sessionAnalyzer = analyzer
         val bitmap = try {
             imageToBitmap(image)
         } catch (_: Exception) {
@@ -123,17 +129,19 @@ class ScreenAuditService : Service() {
         sampleCount++
         recognizer.process(InputImage.fromBitmap(bitmap, 0))
             .addOnSuccessListener { result ->
-                if (!stopped) {
-                    analyzer.observe(result.text)
-                    store.save(analyzer.report())
+                if (!stopped && generation == sessionGeneration) {
+                    sessionAnalyzer.observe(result.text)
+                    store.save(sessionAnalyzer.report())
                 }
             }
             .addOnFailureListener {
-                if (!stopped) store.setError("Some screen samples could not be read. The audit will keep running.")
+                if (!stopped && generation == sessionGeneration) {
+                    store.setError("Some screen samples could not be read. The audit will keep running.")
+                }
             }
             .addOnCompleteListener {
                 bitmap.recycle()
-                processing = false
+                if (generation == sessionGeneration) processing = false
             }
     }
 
@@ -179,6 +187,7 @@ class ScreenAuditService : Service() {
     private fun fail(message: String) {
         store.setError(message)
         store.setActive(false)
+        sessionGeneration++
         stopped = true
         handler.removeCallbacks(sample)
         handler.removeCallbacks(sessionTimeout)
@@ -195,6 +204,7 @@ class ScreenAuditService : Service() {
     private fun stopAudit() {
         if (stopped) return
         stopped = true
+        sessionGeneration++
         handler.removeCallbacks(sample)
         handler.removeCallbacks(sessionTimeout)
         store.save(analyzer.report())

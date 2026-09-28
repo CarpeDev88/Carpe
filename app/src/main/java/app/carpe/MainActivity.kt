@@ -224,7 +224,20 @@ private class ChatSession {
  val auditReport=remember(auditRefresh){auditStore.report()}
  val auditError=remember(auditRefresh){auditStore.error()}
  var showAuditDetails by remember{mutableStateOf(false)}
- LaunchedEffect(Unit){while(true){delay(1000);auditRefresh++}}
+ var auditPending by remember{mutableStateOf(false)}
+ LaunchedEffect(isAuditing,auditPending){
+  if(!isAuditing&&!auditPending)return@LaunchedEffect
+  while(true){
+   delay(1000)
+   auditRefresh++
+   val activeNow=auditStore.isActive()
+   if(auditPending&&(activeNow||auditStore.error().isNotBlank())){
+    auditPending=false
+    break
+   }
+   if(!activeNow&&!auditPending)break
+  }
+ }
  val projectionManager=remember(c){c.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager}
  val projectionLauncher=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()){result->
   val data=result.data
@@ -249,6 +262,7 @@ private class ChatSession {
    Text("Audit active • samples are processed locally",color=Orange,fontWeight=FontWeight.SemiBold,fontSize=13.sp)
   }else Button(onClick={
    auditStore.setError(null)
+   auditPending=true
    if(Build.VERSION.SDK_INT>=33&&c.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)
     notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
    else startProjection()
