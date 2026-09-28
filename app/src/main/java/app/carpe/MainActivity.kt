@@ -533,6 +533,32 @@ private fun cueSummary(report:ScreenAuditReport,count:Int):String =
  var showAiDetails by remember{mutableStateOf(false)}
  val scope=rememberCoroutineScope()
  OutlinedButton(onClick=onWelcome){Text("Revisit welcome & check-in")}
+ Text("Your own goals",fontWeight=FontWeight.Bold,fontSize=20.sp)
+ Text("Choose a goal that matters to you. Check-ins stay on this device; CARPE uses no streaks, reminders, or leaderboard.",color=Muted,fontSize=13.sp,lineHeight=18.sp)
+ val userGoalStore=remember(context){UserGoalStore(context)}
+ var userGoals by remember(r){mutableStateOf(userGoalStore.goals())}
+ var goalTitle by remember{mutableStateOf("")}
+ var goalTarget by remember{mutableStateOf("3")}
+ OutlinedTextField(value=goalTitle,onValueChange={goalTitle=it.take(100)},modifier=Modifier.fillMaxWidth(),label={Text("A goal in your own words")},placeholder={Text("e.g. Walk after dinner")},singleLine=true)
+ Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp),verticalAlignment=Alignment.CenterVertically){
+  OutlinedTextField(value=goalTarget,onValueChange={goalTarget=it.filter(Char::isDigit).take(1)},modifier=Modifier.width(110.dp),label={Text("Times / week")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),singleLine=true)
+  Button(onClick={
+   val added=userGoalStore.addGoal(goalTitle,goalTarget.toIntOrNull()?:3)
+   if(added!=null){goalTitle="";userGoals=userGoalStore.goals();changed()}
+  },enabled=goalTitle.isNotBlank()){Text("Add goal")}
+ }
+ userGoals.forEach{goal->
+  val count=GoalProgress.countWithinDays(userGoalStore.checkIns(goal.id),7,System.currentTimeMillis())
+  Card(colors=CardDefaults.cardColors(containerColor=White)){Column(Modifier.fillMaxWidth().padding(14.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){
+   Text(goal.title,fontWeight=FontWeight.SemiBold,fontSize=16.sp,color=Ink)
+   Text("$count of ${goal.weeklyTarget} planned check-ins in the last 7 days",color=Muted,fontSize=13.sp)
+   Row(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically){
+    Button(onClick={userGoalStore.checkIn(goal.id);changed()}){Text("Log a step")}
+    TextButton(onClick={userGoalStore.removeGoal(goal.id);userGoals=userGoalStore.goals();changed()}){Text("Remove")}
+   }
+  }}
+ }
+ HorizontalDivider()
  Text("AI & privacy",fontWeight=FontWeight.Bold,fontSize=20.sp)
  Card(colors=CardDefaults.cardColors(containerColor=Peach)){Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){
   Text("AI is optional. Local guidance works without a connection.",fontWeight=FontWeight.SemiBold)
@@ -582,32 +608,6 @@ private fun cueSummary(report:ScreenAuditReport,count:Int):String =
  val goals=listOf("More time offline","Fitness & movement","Home cooking","Focused work","Saving money","Less compulsive content","Reduce porn use","Think across political viewpoints")
  goals.forEach{g->val k="goal_"+g.lowercase().replace(" ","_").replace("&","and");var on by remember{mutableStateOf(prefs.getBoolean(k,g=="More time offline"||g=="Focused work"))};Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text(g,Modifier.weight(1f));Switch(on,{on=it;prefs.edit().putBoolean(k,it).apply()})}}
  Text("Sensitive goals are optional. CARPE does not monitor page content or infer what you view; these choices only shape suggestions you request.",color=Muted,fontSize=12.sp,lineHeight=17.sp)
- HorizontalDivider()
- Text("Your own goals",fontWeight=FontWeight.Bold,fontSize=20.sp)
- Text("Choose a goal that matters to you. Check-ins stay on this device; CARPE uses no streaks, reminders, or leaderboard.",color=Muted,fontSize=13.sp,lineHeight=18.sp)
- val userGoalStore=remember(context){UserGoalStore(context)}
- var userGoals by remember(r){mutableStateOf(userGoalStore.goals())}
- var goalTitle by remember{mutableStateOf("")}
- var goalTarget by remember{mutableStateOf("3")}
- OutlinedTextField(value=goalTitle,onValueChange={goalTitle=it.take(100)},modifier=Modifier.fillMaxWidth(),label={Text("A goal in your own words")},placeholder={Text("e.g. Walk after dinner")},singleLine=true)
- Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp),verticalAlignment=Alignment.CenterVertically){
-  OutlinedTextField(value=goalTarget,onValueChange={goalTarget=it.filter(Char::isDigit).take(1)},modifier=Modifier.width(110.dp),label={Text("Times / week")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),singleLine=true)
-  Button(onClick={
-   val added=userGoalStore.addGoal(goalTitle,goalTarget.toIntOrNull()?:3)
-   if(added!=null){goalTitle="";userGoals=userGoalStore.goals();changed()}
-  },enabled=goalTitle.isNotBlank()){Text("Add goal")}
- }
- userGoals.forEach{goal->
-  val count=GoalProgress.countWithinDays(userGoalStore.checkIns(goal.id),7,System.currentTimeMillis())
-  Card(colors=CardDefaults.cardColors(containerColor=White)){Column(Modifier.fillMaxWidth().padding(14.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){
-   Text(goal.title,fontWeight=FontWeight.SemiBold,fontSize=16.sp,color=Ink)
-   Text("$count of ${goal.weeklyTarget} planned check-ins in the last 7 days",color=Muted,fontSize=13.sp)
-   Row(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically){
-    Button(onClick={userGoalStore.checkIn(goal.id);changed()}){Text("Log a step")}
-    TextButton(onClick={userGoalStore.removeGoal(goal.id);userGoals=userGoalStore.goals();changed()}){Text("Remove")}
-   }
-  }}
- }
  HorizontalDivider()
  Text("How CARPE learns",fontWeight=FontWeight.Bold,fontSize=20.sp)
  Text("Only feedback you tap on a suggestion is used. It stays on this device, and a few ratings have limited influence.",color=Muted,fontSize=13.sp,lineHeight=18.sp)
