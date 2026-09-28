@@ -12,8 +12,8 @@ android {
         applicationId = "app.carpe"
         minSdk = 26
         targetSdk = 35
-        versionCode = 12
-        versionName = "0.12.0"
+        versionCode = 13
+        versionName = "0.13.0"
     }
 
     compileOptions {
@@ -28,6 +28,8 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+        val aiEndpoint = project.findProperty("CARPE_AI_ENDPOINT")?.toString() ?: ""
+        buildConfigField("String", "CARPE_AI_ENDPOINT", "\\\"${aiEndpoint}\\\"")
     }
 
     packaging {
