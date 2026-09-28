@@ -36,7 +36,7 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
  MaterialTheme(colorScheme=lightColorScheme(primary=Green,background=Cream)){
   Scaffold(bottomBar={NavigationBar{listOf("Today","Coach","Focus","Shield","Me").forEachIndexed{i,n->NavigationBarItem(selected=tab==i,onClick={tab=i},icon={Text(listOf("☀","✦","◉","⬡","●")[i])},label={Text(n)})}}}){p->
    when(tab){
-    0->Today(p,context,actions){refresh++}
+    0->Today(p,context,actions,{refresh++},{tab=4})
     1->Coach(p,prefs,usage,actions,refresh)
     2->Focus(p,actions){refresh++}
     3->Shield(p,context,usage)
@@ -46,34 +46,55 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
  }
 }
 @Composable private fun Page(p:PaddingValues,title:String,sub:String,body:@Composable ColumnScope.()->Unit){Column(Modifier.fillMaxSize().padding(p).verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){Text("CARPE",color=Green,fontWeight=FontWeight.Bold,letterSpacing=3.sp);Text(title,fontSize=32.sp,fontWeight=FontWeight.Bold);Text(sub,color=Color.DarkGray);body();Spacer(Modifier.height(30.dp))}}
-@Composable private fun Today(p:PaddingValues,c:Context,s:ActionStore,changed:()->Unit)=Page(p,"What do you want to do right now?","Tell CARPE what you need. Type naturally or use your voice."){
+@Composable private fun Today(p:PaddingValues,c:Context,s:ActionStore,changed:()->Unit,openSettings:()->Unit)=Page(p,"What do you want to do right now?","Tell CARPE what you need. Type naturally or use your voice."){
  var input by remember{mutableStateOf("")}; var response by remember{mutableStateOf("")}; var thinking by remember{mutableStateOf(false)}
+ var lastIntent by remember{mutableStateOf(CarpeIntent.UNKNOWN)}
+ var recipeQuery by remember{mutableStateOf("")}
  val scope=rememberCoroutineScope(); val gateway=remember{SecureAiGateway(c)}; val history=remember{mutableStateListOf<AiTurn>()}
  val profile=remember{UserProfileStore(c)}
  val voice=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()){r->r.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.let{input=it}}
  val router=remember{IntentRouter()}
  fun act(){val q=input.trim();if(q.isBlank()||thinking)return;profile.learn(q);val routed=router.classify(q)
-  val local=when(routed.intent){
-   CarpeIntent.COOK->"Let's cook without leaving CARPE. Tell me what ingredients you have, how much time you want to spend, and any budget or dietary limits."
+  val intent=if(routed.intent==CarpeIntent.UNKNOWN && lastIntent==CarpeIntent.COOK) CarpeIntent.COOK else routed.intent
+  lastIntent=intent
+  recipeQuery=if(intent==CarpeIntent.COOK) q else ""
+  val local=when(intent){
+   CarpeIntent.COOK->"Tell me what ingredients you have, or tap Find recipes to search for ideas using your request. You can also include your time, budget, and dietary needs."
    CarpeIntent.FOCUS->"Let's turn that intention into action. Open Focus below for a protected 25-minute block, then put the phone down."
    CarpeIntent.MOVE->"Choose the smallest useful movement you can start now: a 10-minute walk, stretching, or a short workout."
    CarpeIntent.SPEND->"Before buying, name what problem the purchase solves, whether you already own an alternative, and whether waiting 24 hours would change the decision."
    CarpeIntent.REFLECT->"You noticed the loop. Pick one small departure: put the phone down for 10 minutes, walk outside, make food, or start one task you care about."
-   CarpeIntent.UNKNOWN->null
+   CarpeIntent.UNKNOWN->"I can help you choose a next step for cooking, movement, focused work, or deliberate spending. Tell me which matters right now. For open-ended questions, connect cloud AI in Me → AI & privacy."
   }
-  thinking=true;response="";val prior=history.toList();history+=AiTurn("user",q);input=""
+  response="";val prior=history.toList();history+=AiTurn("user",q);input=""
+  if(SecureAiGateway.configuredEndpoint(c).isBlank()){
+   response="Cloud AI is not connected yet. Here's what CARPE can do locally:\n\n$local"
+   history+=AiTurn("assistant",local)
+   return
+  }
+  thinking=true
   scope.launch{gateway.ask(q,if(profile.enabled())profile.summary() else "",prior).fold(
    onSuccess={answer->response=answer;history+=AiTurn("assistant",answer)},
    onFailure={e->
-    response=if(local!=null) "Cloud AI is unavailable (${e.message ?: "connection failed"}). Here's a local suggestion:\n\n$local"
-     else (e.message ?: "CARPE could not reach its AI service. Please try again.")
-    if(local!=null) history+=AiTurn("assistant",local)
+    response="Cloud AI is unavailable (${e.message ?: "connection failed"}). Here's a local suggestion:\n\n$local"
+    history+=AiTurn("assistant",local)
    }
   );thinking=false}
+ }
+ if(SecureAiGateway.configuredEndpoint(c).isBlank()) ElevatedCard {
+  Column(Modifier.fillMaxWidth().padding(16.dp)){
+   Text("Cloud AI is not connected",fontWeight=FontWeight.Bold)
+   Text("CARPE can offer local guidance. Open-ended AI replies need the CARPE service to be deployed and connected.")
+   TextButton(onClick=openSettings){Text("Open AI settings")}
+  }
  }
  OutlinedTextField(value=input,onValueChange={input=it},modifier=Modifier.fillMaxWidth().heightIn(min=120.dp),placeholder={Text("Ask CARPE anything…")},maxLines=6)
  Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)){OutlinedButton(onClick={try{voice.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM).putExtra(RecognizerIntent.EXTRA_PROMPT,"Talk to CARPE"))}catch(_:Exception){response="Voice recognition isn't available on this device."}},modifier=Modifier.weight(1f)){Text("🎤  Speak")};Button(onClick={act()},enabled=!thinking,modifier=Modifier.weight(1f)){Text(if(thinking)"Thinking…" else "Send")}}
  if(response.isNotBlank()) ElevatedCard{Text(response,Modifier.fillMaxWidth().padding(16.dp))}
+ if(recipeQuery.isNotBlank()) OutlinedButton(onClick={
+  val url="https://www.google.com/search?q="+Uri.encode("recipes "+recipeQuery)
+  runCatching{c.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(url)))}
+ }){Text("Find recipes in browser")}
  Text("Suggestions",fontSize=18.sp,fontWeight=FontWeight.Bold)
  ActionCard("Cook something","Tell CARPE what you have, what sounds good, your budget, or how much time you have."){input="Help me cook something. Ask me what ingredients I have, what sounds good, and how much time I have."}
  ActionCard("Move your body","Walk, train, stretch, or get outside."){input="Help me move my body today"}
