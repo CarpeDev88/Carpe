@@ -77,7 +77,18 @@ class SecureAiGateway(private val context:Context):CarpeAiProvider {
    c.outputStream.use{it.write(body.toByteArray(Charsets.UTF_8))}
    val code=c.responseCode
    val raw=(if(code in 200..299)c.inputStream else c.errorStream)?.bufferedReader()?.use{it.readText()}.orEmpty()
-   if(code !in 200..299) error("AI service returned HTTP $code")
+   if(code !in 200..299) {
+    val serviceError=runCatching{JSONObject(raw).optString("error")}.getOrDefault("")
+    val explanation=when(code){
+     401,403->"The AI service rejected the request. Check its app access settings."
+     404->"The AI service URL was not found. Check that it ends in /v1/ask."
+     429->"The AI service is busy or has reached its request limit."
+     502,503->if(serviceError=="AI provider is not configured") "The service is missing its AI provider key."
+      else "The service could not reach its AI provider. Check its provider key and quota."
+     else->"AI service returned HTTP $code"
+    }
+    error(explanation)
+   }
    val json=JSONObject(raw)
    json.optString("response").ifBlank{json.optString("text")}.ifBlank{error("AI service returned no response")}
   }

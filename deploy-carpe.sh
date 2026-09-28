@@ -22,14 +22,14 @@ else
   echo "Could not check billing status; attempting API activation. If it fails, check billing at https://console.cloud.google.com/billing/linkedaccount?project=$PROJECT_ID" >&2
 fi
 
-if ! gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com --project "$PROJECT_ID"; then
+if ! gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com generativelanguage.googleapis.com --project "$PROJECT_ID"; then
   echo "API activation failed. Check project billing at https://console.cloud.google.com/billing/linkedaccount?project=$PROJECT_ID, then rerun this script." >&2
   exit 1
 fi
 if ! gcloud secrets describe "$SECRET" --project "$PROJECT_ID" >/dev/null 2>&1; then
   gcloud secrets create "$SECRET" --replication-policy=automatic --project "$PROJECT_ID"
 fi
-if [[ -z "$(gcloud secrets versions list "$SECRET" --project "$PROJECT_ID" --filter='state=ENABLED' --format='value(name)' --limit=1)" ]]; then
+if [[ "${CARPE_ROTATE_KEY:-0}" == "1" || -z "$(gcloud secrets versions list "$SECRET" --project "$PROJECT_ID" --filter='state=ENABLED' --format='value(name)' --limit=1)" ]]; then
   printf 'Paste the Gemini API key (input hidden), then press Enter: ' >&2
   IFS= read -r -s GEMINI_KEY
   printf '\n' >&2

@@ -2,6 +2,7 @@ package app.carpe.core
 
 import android.app.AppOpsManager
 import android.app.usage.UsageStatsManager
+import android.app.usage.UsageEvents
 import android.content.Context
 import android.content.Intent
 import android.os.Process
@@ -30,11 +31,23 @@ class UsageAccess(private val context: Context) {
         val manager = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
         val end = System.currentTimeMillis()
         val start = end - 24L * 60L * 60L * 1000L
-        return manager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, start, end)
-            .asSequence()
-            .filter { it.totalTimeInForeground > 0 }
-            .map { AppUsage(it.packageName, it.totalTimeInForeground / 60_000L) }
-            .sortedByDescending { it.foregroundMinutes }
-            .toList()
+        val events=manager.queryEvents(start,end) ?: return emptyList()
+        val event=UsageEvents.Event()
+        val active=mutableMapOf<String,Long>()
+        val totals=mutableMapOf<String,Long>()
+        while(events.hasNextEvent()) {
+            events.getNextEvent(event)
+            val pkg=event.packageName ?: continue
+            when(event.eventType) {
+                UsageEvents.Event.ACTIVITY_RESUMED -> active.putIfAbsent(pkg,event.timeStamp)
+                UsageEvents.Event.ACTIVITY_PAUSED -> active.remove(pkg)?.let{began->
+                    totals[pkg]=(totals[pkg] ?: 0L)+(event.timeStamp-began).coerceAtLeast(0L)
+                }
+            }
+        }
+        active.forEach{(pkg,began)->totals[pkg]=(totals[pkg] ?: 0L)+(end-began).coerceAtLeast(0L)}
+        return totals.map{(pkg,millis)->AppUsage(pkg,millis/60_000L)}
+            .filter{it.foregroundMinutes>0}
+            .sortedByDescending{it.foregroundMinutes}
     }
 }

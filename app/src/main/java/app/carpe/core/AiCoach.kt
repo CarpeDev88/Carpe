@@ -1,5 +1,8 @@
 package app.carpe.core
 
+import java.time.LocalDate
+import java.time.ZoneId
+
 data class CoachContext(val reclaimedMinutes:Int,val goals:List<String>,val topApps:List<AppUsage>,val recentActions:List<CarpeAction>)
 data class CoachSuggestion(val title:String,val reason:String,val actionType:String,val minutes:Int)
 
@@ -11,7 +14,8 @@ class AiCoach {
    "Take a 10-minute departure",
    heavy.packageName.substringAfterLast('.')+" has "+heavy.foregroundMinutes+" minutes of foreground use. CARPE cannot know whether that was helpful; a short pause gives you a chance to decide.",
    "move",10)
-  if(c.goals.any{it.contains("cooking",true)}&&c.recentActions.none{it.type=="cook"})
+  val todayStart=LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+  if(c.goals.any{it.contains("cooking",true)}&&c.recentActions.none{it.type=="cook"&&it.completedAt>=todayStart})
    out+=CoachSuggestion("Make your next meal","Home cooking is one of the intentions you chose. Start with what you already have.","cook",30)
   if(c.goals.any{it.contains("Focused",true)||it.contains("work",true)})
    out+=CoachSuggestion("Protect one focus block","A 25-minute single-task block advances a goal you selected without asking you to stay inside CARPE.","focus",25)
