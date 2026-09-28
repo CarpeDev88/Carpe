@@ -67,8 +67,8 @@ jobs:
             adb pull /sdcard/carpe-focus.png carpe-focus.png
             adb shell input tap 224 580
             sleep 2
-            adb shell screencap -p /sdcard/carpe-shield.png
-            adb pull /sdcard/carpe-shield.png carpe-shield.png
+            adb shell screencap -p /sdcard/carpe-mirror.png
+            adb pull /sdcard/carpe-mirror.png carpe-mirror.png
             adb shell input tap 288 580
             sleep 2
             adb shell screencap -p /sdcard/carpe-me.png
