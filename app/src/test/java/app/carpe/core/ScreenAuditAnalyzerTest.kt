@@ -8,7 +8,7 @@ class ScreenAuditAnalyzerTest {
     fun countsVisibleLabelsAndProducesAggregateReport() {
         val analyzer = ScreenAuditAnalyzer()
         analyzer.observe("Sponsored recipe ideas. Suggested for you. Keep watching more cooking videos now.")
-        analyzer.observe("Sponsored recipe ideas. Suggested for you. Autoplay more cooking videos now.")
+        analyzer.observe("Sponsored recipe ideas. Suggested for you. Keep watching. Autoplay more cooking videos now.")
 
         val report = analyzer.report(completedAt = 123L)
         assertEquals(2, report.sampledScreens)
