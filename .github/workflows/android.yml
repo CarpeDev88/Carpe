@@ -57,7 +57,7 @@ jobs:
           script: |
             python3 scripts/smoke_onboarding.py
       - name: Save emulator screenshot
-        if: github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: carpe-emulator-screenshot

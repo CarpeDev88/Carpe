@@ -238,7 +238,7 @@ private class ChatSession {
   onDismissRequest={showCoachInput=false},
   icon={CoachAvatar(72.dp)},
   title={Text("Your CARPE coach")},
-  text={Column(verticalArrangement=Arrangement.spacedBy(12.dp)){
+  text={Column(Modifier.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)){
    Text("What would help you seize the day? Speak or type, then tap Send.")
    Text(if(!directKeyStore.hasKey() && SecureAiGateway.configuredEndpoint(c).isBlank())"Local guidance is available. Cloud AI is not connected." else "Sending shares this request and your enabled profile with your AI provider. Device observations stay local.",fontSize=12.sp,color=Muted)
    OutlinedTextField(value=input,onValueChange={input=it},

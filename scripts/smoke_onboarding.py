@@ -32,6 +32,8 @@ def locate(label, tap=False):
         width, height = size
         adb("shell", "input", "swipe", str(width//2), str(height*3//4),
             str(width//2), str(height//3), "300")
+    screenshot("failure")
+    print(ET.tostring(tree(), encoding="unicode"))
     raise AssertionError("Missing accessible UI: " + label)
 
 
