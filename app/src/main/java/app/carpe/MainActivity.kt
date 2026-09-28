@@ -19,6 +19,9 @@ import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.Image
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
@@ -142,21 +145,21 @@ private class ChatSession {
   if(showWelcome){
    WelcomeFlow(onFinish={destination->
     prefs.edit().putBoolean("welcome_complete",true).apply()
-    when(destination){
-     "focus"->tab=2
-     "mirror"->tab=3
-     "goals"->tab=4
-     "offline"->{chat.input.value="Help me choose one offline activity that fits my time and energy.";tab=0}
-     else->tab=0
+    chat.input.value=when(destination){
+     "focus"->"Help me protect my focus"
+     "mirror"->"Help me understand my technology-use patterns"
+     "goals"->"Customize CARPE"
+     "offline"->"Help me choose one offline activity that fits my time and energy."
+     else->""
     }
+    tab=0
     showWelcome=false
    })
   }else{
-  Scaffold(containerColor=WarmWhite,bottomBar={NavigationBar(containerColor=White,tonalElevation=2.dp){
-   val labels=listOf("Today","Coach","Focus","Mirror","Me")
-   val icons=listOf(Icons.Filled.Today,Icons.Filled.AutoAwesome,Icons.Filled.CenterFocusStrong,Icons.Filled.Visibility,Icons.Filled.Person)
-   labels.forEachIndexed{i,n->NavigationBarItem(selected=tab==i,onClick={tab=i},icon={Icon(icons[i],contentDescription=n)},label={Text(n)},colors=NavigationBarItemDefaults.colors(selectedIconColor=Orange,selectedTextColor=Orange,indicatorColor=Peach,unselectedIconColor=Muted,unselectedTextColor=Muted))}
-  }}){p->
+  BackHandler(enabled=tab!=0){tab=0}
+  Scaffold(containerColor=White,topBar={
+   if(tab!=0) TextButton(onClick={tab=0},modifier=Modifier.statusBarsPadding()){Text("Back to your CARPE coach")}
+  }){p->
    when(tab){
     0->Today(p,context,actions,{refresh++},{tab=4},{tab=2},chat,chatScope,onExplore={tab=it})
     1->Coach(p,prefs,usage,actions,refresh,onAction={type->
@@ -181,15 +184,17 @@ private class ChatSession {
 }
 }
 @Composable private fun Page(p:PaddingValues,title:String,sub:String,body:@Composable ColumnScope.()->Unit){Column(Modifier.fillMaxSize().padding(p).verticalScroll(rememberScrollState()).padding(horizontal=20.dp, vertical=18.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){Text("CARPE",color=Orange,fontWeight=FontWeight.Bold,letterSpacing=3.sp,fontSize=13.sp);Text(title,fontSize=30.sp,fontWeight=FontWeight.Bold,color=Ink);Text(sub,color=Muted,fontSize=15.sp,lineHeight=21.sp);body();Spacer(Modifier.height(30.dp))}}
-@Composable private fun Today(p:PaddingValues,c:Context,s:ActionStore,changed:()->Unit,openSettings:()->Unit,openFocus:()->Unit,chat:ChatSession,scope:CoroutineScope,onExplore:(Int)->Unit)=Page(p,"What matters now?","Type what you need or use your voice."){
+@Composable private fun CoachHome(p:PaddingValues,body:@Composable ColumnScope.()->Unit){
+ Column(Modifier.fillMaxSize().padding(p).verticalScroll(rememberScrollState()).padding(24.dp),verticalArrangement=Arrangement.spacedBy(18.dp,Alignment.CenterVertically),horizontalAlignment=Alignment.CenterHorizontally,content=body)
+}
+@Composable private fun Today(p:PaddingValues,c:Context,s:ActionStore,changed:()->Unit,openSettings:()->Unit,openFocus:()->Unit,chat:ChatSession,scope:CoroutineScope,onExplore:(Int)->Unit)=CoachHome(p){
  var showCoachInput by remember{mutableStateOf(false)}
  var showCoachTour by remember{mutableStateOf(false)}
+ var customization by remember{mutableStateOf<CoachChange?>(null)}
  var input by chat.input; var response by chat.response; var thinking by chat.thinking
  var lastIntent by chat.lastIntent; var recipeQuery by chat.recipeQuery
  var awaitingCookFollowup by chat.awaitingCookFollowup
  var actionLogged by chat.actionLogged
- var showRecipeSearch by remember{mutableStateOf(false)}
- var recipeInput by remember{mutableStateOf("")}
  val gateway=remember{SecureAiGateway(c)}; val history=chat.history
  val directKeyStore=remember{AiStudioKeyStore(c)}
  val directProvider=remember{DirectGeminiProvider(directKeyStore)}
@@ -198,7 +203,10 @@ private class ChatSession {
  fun speakToCoach(){try{voice.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM).putExtra(RecognizerIntent.EXTRA_PROMPT,"Talk to CARPE"))}catch(_:Exception){response="Voice recognition isn't available on this device."}}
  val router=remember{IntentRouter()}
  val localRecipes=remember(recipeQuery){RecipeCatalog.search(recipeQuery)}
- fun act(){val q=input.trim();if(q.isBlank()||thinking)return;profile.learn(q);val routed=router.classify(q)
+ fun act(){val q=input.trim();if(q.isBlank()||thinking)return
+  val change=CoachCustomization.parse(q)
+  if(change!=null){customization=change;input="";return}
+  profile.learn(q);val routed=router.classify(q)
   val isCookContinuation=routed.intent==CarpeIntent.UNKNOWN && awaitingCookFollowup
   val intent=LocalAssistant.resolveIntent(routed.intent,awaitingCookFollowup)
   lastIntent=intent
@@ -225,28 +233,43 @@ private class ChatSession {
    }
   );thinking=false}
  }
+ customization?.let{request->CoachCustomizationPanel(c,request,{customization=null},changed,onExplore)}
  if(showCoachInput) AlertDialog(
   onDismissRequest={showCoachInput=false},
   icon={CoachAvatar(72.dp)},
   title={Text("Your CARPE coach")},
   text={Column(verticalArrangement=Arrangement.spacedBy(12.dp)){
-   Text("What would help you right now? Speak or type, then tap Send.")
+   Text("What would help you seize the day? Speak or type, then tap Send.")
+   Text(if(!directKeyStore.hasKey() && SecureAiGateway.configuredEndpoint(c).isBlank())"Local guidance is available. Cloud AI is not connected." else "Sending shares this request and your enabled profile with your AI provider. Device observations stay local.",fontSize=12.sp,color=Muted)
    OutlinedTextField(value=input,onValueChange={input=it},
     modifier=Modifier.fillMaxWidth().heightIn(min=88.dp),
     placeholder={Text("Tell me what you need…")},maxLines=5)
+   if(directKeyStore.hasKey())Text("Google AI Studio free-tier prompts may be used to improve Google products. Avoid sensitive details.",fontSize=12.sp,color=Muted)
    TextButton(onClick={speakToCoach()}){Text("Speak")}
+   TextButton(onClick={showCoachInput=false;customization=CoachChange.Help}){Text("Customize CARPE")}
    TextButton(onClick={showCoachInput=false;showCoachTour=true}){Text("Show me around CARPE")}
   }},
   confirmButton={TextButton(onClick={showCoachInput=false;act()},enabled=input.isNotBlank()&&!thinking){Text("Send")}},
   dismissButton={TextButton(onClick={showCoachInput=false}){Text("Close")}}
  )
- Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally){
-  IconButton(onClick={showCoachInput=true},modifier=Modifier.size(128.dp)){
-   CoachAvatar(120.dp)
+ Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(14.dp)){
+  val greetingMotion=remember{Animatable(0f)}
+  LaunchedEffect(Unit){
+   if(Settings.Global.getFloat(c.contentResolver,Settings.Global.ANIMATOR_DURATION_SCALE,1f)>0f){
+    greetingMotion.animateTo(-1f,tween(700))
+    greetingMotion.animateTo(1f,tween(1100))
+    greetingMotion.animateTo(0f,tween(700))
+   }
   }
-  Text("Your CARPE coach",fontWeight=FontWeight.Bold,fontSize=19.sp,color=Ink)
-  Text(if(thinking)"Working on your request…" else "Tap me to speak or type.",color=Muted,lineHeight=21.sp)
-  if(input.isNotBlank())Text("Your draft is ready. Tap me to review and send.",fontSize=13.sp,color=Orange)
+  IconButton(onClick={showCoachInput=true},modifier=Modifier.size(210.dp).graphicsLayer{
+   translationX=greetingMotion.value*18.dp.toPx()
+   translationY=-kotlin.math.abs(greetingMotion.value)*8.dp.toPx()
+   rotationZ=greetingMotion.value*3f
+  }){CoachAvatar(200.dp)}
+  Text("Hi, I’m your CARPE coach.",fontWeight=FontWeight.Bold,fontSize=23.sp,color=Ink,textAlign=androidx.compose.ui.text.style.TextAlign.Center)
+  Text("I’m here to help you seize the day.",fontSize=17.sp,color=Muted,textAlign=androidx.compose.ui.text.style.TextAlign.Center)
+  Text(if(thinking)"Working on your request…" else "Tap me. Let’s make today yours.",color=Orange,lineHeight=21.sp)
+  if(input.isNotBlank())Text("Your draft is ready. Tap me to review and send.",fontSize=13.sp,color=Muted)
  }
  if(showCoachTour){
   Card(colors=CardDefaults.cardColors(containerColor=Peach)){
@@ -262,8 +285,6 @@ private class ChatSession {
    }
   }
  }
- Card(colors=CardDefaults.cardColors(containerColor=Peach)){Row(Modifier.fillMaxWidth().padding(horizontal=14.dp, vertical=8.dp),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text(if(!directKeyStore.hasKey() && SecureAiGateway.configuredEndpoint(c).isBlank())"AI is optional" else "AI connection ready",fontWeight=FontWeight.SemiBold,color=Ink,fontSize=13.sp);Text(if(!directKeyStore.hasKey() && SecureAiGateway.configuredEndpoint(c).isBlank())"Local guidance works without connecting." else "Only the current request is sent when you choose Send.",fontSize=12.sp,color=Muted)};TextButton(onClick=openSettings){Text(if(!directKeyStore.hasKey() && SecureAiGateway.configuredEndpoint(c).isBlank())"Connect" else "Details")}}}
- if(directKeyStore.hasKey()) Text("Google AI Studio may use free-tier prompts to improve Google products. Avoid sensitive details. Earlier chat turns and captured screen samples are never included.",color=Muted,fontSize=12.sp)
  if(response.isNotBlank()) ElevatedCard{
   Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
    Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)){
@@ -300,19 +321,7 @@ private class ChatSession {
   }
   Text("Time is approximate. Check ingredient labels for allergies or dietary needs; CARPE does not verify brands or cross-contact.",color=Muted,fontSize=12.sp)
  }
- Text("Suggestions",fontSize=18.sp,fontWeight=FontWeight.Bold)
- ActionCard("Cook something","Search recipes using ingredients, a meal idea, or a dietary need."){showRecipeSearch=!showRecipeSearch}
- if(showRecipeSearch){
-  OutlinedTextField(value=recipeInput,onValueChange={recipeInput=it},modifier=Modifier.fillMaxWidth(),label={Text("Ingredients or meal")},placeholder={Text("eggs, spinach, 20 minutes")},singleLine=true)
-  Button(onClick={
-   awaitingCookFollowup=false
-   recipeQuery=recipeInput.trim().ifBlank{"quick dinner"}
-  }){Text("Find ideas in CARPE")}
- }
- ActionCard("Move your body","Walk, train, stretch, or get outside."){input="Help me move my body today"}
- ActionCard("Do meaningful work","Start a protected focus block."){openFocus()}
- ActionCard("Spend deliberately","Pause before a non-essential purchase."){input="Help me make a deliberate spending decision"}
- Text("CARPE counts completed offline actions, not time spent inside CARPE.",color=Orange,fontWeight=FontWeight.Medium)
+
 }
 @Composable private fun ActionCard(t:String,d:String,on:()->Unit){ElevatedCard(onClick=on,colors=CardDefaults.elevatedCardColors(containerColor=White)){Column(Modifier.fillMaxWidth().padding(18.dp)){Text(t,fontWeight=FontWeight.Bold,fontSize=18.sp,color=Ink);Text(d,color=Muted,lineHeight=20.sp)}}}
 @Composable private fun Coach(p:PaddingValues,prefs:android.content.SharedPreferences,u:UsageAccess,a:ActionStore,r:Int,onAction:(String)->Unit,onPlanGoal:(String)->Unit,onGoalLogged:()->Unit)=Page(p,"CARPE intelligence","Recommendations use only the context you choose to provide. Device usage stays local in this alpha."){
@@ -369,8 +378,9 @@ private class ChatSession {
 @Composable private fun Focus(p:PaddingValues,a:ActionStore,changed:()->Unit)=Page(p,"Focus","A timer that is successful when you stop looking at CARPE."){
  val context=androidx.compose.ui.platform.LocalContext.current
  val session=remember(context){FocusSessionStore(context)}
+ val focusMinutes=context.getSharedPreferences("carpe",Context.MODE_PRIVATE).getInt("focus_minutes",25).coerceIn(1,120)
  var running by remember{mutableStateOf(session.isActive())}
- var left by remember{mutableLongStateOf(if(running)session.remainingMillis() else 25*60_000L)}
+ var left by remember{mutableLongStateOf(if(running)session.remainingMillis() else focusMinutes*60_000L)}
  LaunchedEffect(running){
   while(running){
    if(session.finishIfDue(a)){running=false;left=0L;changed();break}
@@ -379,7 +389,7 @@ private class ChatSession {
   }
  }
  Text(String.format("%02d:%02d",left/60000,(left/1000)%60),fontSize=52.sp,fontWeight=FontWeight.Bold)
- Button(onClick={if(!running){session.start(25);running=true;left=session.remainingMillis()}else{session.stop();running=false;left=25*60_000L}},modifier=Modifier.fillMaxWidth()){Text(if(running)"Stop session" else "Start 25-minute focus")}
+ Button(onClick={if(!running){session.start(focusMinutes);running=true;left=session.remainingMillis()}else{session.stop();running=false;left=focusMinutes*60_000L}},modifier=Modifier.fillMaxWidth()){Text(if(running)"Stop session" else "Start $focusMinutes-minute focus")}
  Text("Put the phone down. CARPE will not send engagement prompts during the session.")
 }
 @Composable private fun Mirror(p:PaddingValues,c:Context,u:UsageAccess)=Page(p,"Algorithm mirror","Inspect visible feed cues, understand what CARPE can observe, and choose what to do next."){
