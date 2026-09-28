@@ -19,6 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.CoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -29,15 +30,25 @@ import app.carpe.core.*
 private val Cream=Color(0xFFF5F1E8); private val Green=Color(0xFF355E48)
 class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.onCreate(b);setContent{CarpeApp()}}}
 
+private class ChatSession {
+ val input=mutableStateOf("")
+ val response=mutableStateOf("")
+ val thinking=mutableStateOf(false)
+ val lastIntent=mutableStateOf(CarpeIntent.UNKNOWN)
+ val recipeQuery=mutableStateOf("")
+ val history=mutableStateListOf<AiTurn>()
+}
+
 @Composable fun CarpeApp(){
  val context=androidx.compose.ui.platform.LocalContext.current
  val prefs=remember{context.getSharedPreferences("carpe",Context.MODE_PRIVATE)}
  val actions=remember{ActionStore(context)}; val usage=remember{UsageAccess(context)}
+ val chat=remember{ChatSession()}; val chatScope=rememberCoroutineScope()
  var tab by remember{mutableIntStateOf(0)}; var refresh by remember{mutableIntStateOf(0)}
  MaterialTheme(colorScheme=lightColorScheme(primary=Green,background=Cream)){
   Scaffold(bottomBar={NavigationBar{listOf("Today","Coach","Focus","Shield","Me").forEachIndexed{i,n->NavigationBarItem(selected=tab==i,onClick={tab=i},icon={Text(listOf("☀","✦","◉","⬡","●")[i])},label={Text(n)})}}}){p->
    when(tab){
-    0->Today(p,context,actions,{refresh++},{tab=4},{tab=2})
+    0->Today(p,context,actions,{refresh++},{tab=4},{tab=2},chat,chatScope)
     1->Coach(p,prefs,usage,actions,refresh)
     2->Focus(p,actions){refresh++}
     3->Shield(p,context,usage)
@@ -47,13 +58,12 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
  }
 }
 @Composable private fun Page(p:PaddingValues,title:String,sub:String,body:@Composable ColumnScope.()->Unit){Column(Modifier.fillMaxSize().padding(p).verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){Text("CARPE",color=Green,fontWeight=FontWeight.Bold,letterSpacing=3.sp);Text(title,fontSize=32.sp,fontWeight=FontWeight.Bold);Text(sub,color=Color.DarkGray);body();Spacer(Modifier.height(30.dp))}}
-@Composable private fun Today(p:PaddingValues,c:Context,s:ActionStore,changed:()->Unit,openSettings:()->Unit,openFocus:()->Unit)=Page(p,"What do you want to do right now?","Tell CARPE what you need. Type naturally or use your voice."){
- var input by remember{mutableStateOf("")}; var response by remember{mutableStateOf("")}; var thinking by remember{mutableStateOf(false)}
- var lastIntent by remember{mutableStateOf(CarpeIntent.UNKNOWN)}
- var recipeQuery by remember{mutableStateOf("")}
+@Composable private fun Today(p:PaddingValues,c:Context,s:ActionStore,changed:()->Unit,openSettings:()->Unit,openFocus:()->Unit,chat:ChatSession,scope:CoroutineScope)=Page(p,"What do you want to do right now?","Tell CARPE what you need. Type naturally or use your voice."){
+ var input by chat.input; var response by chat.response; var thinking by chat.thinking
+ var lastIntent by chat.lastIntent; var recipeQuery by chat.recipeQuery
  var showRecipeSearch by remember{mutableStateOf(false)}
  var recipeInput by remember{mutableStateOf("")}
- val scope=rememberCoroutineScope(); val gateway=remember{SecureAiGateway(c)}; val history=remember{mutableStateListOf<AiTurn>()}
+ val gateway=remember{SecureAiGateway(c)}; val history=chat.history
  val profile=remember{UserProfileStore(c)}
  val voice=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()){r->r.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.let{input=it}}
  val router=remember{IntentRouter()}
@@ -70,6 +80,7 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
    CarpeIntent.UNKNOWN->"I can help you choose a next step for cooking, movement, focused work, or deliberate spending. Tell me which matters right now. For open-ended questions, connect cloud AI in Me → AI & privacy."
   }
   response="";val prior=history.toList();history+=AiTurn("user",q);input=""
+  while(history.size>20)history.removeAt(0)
   if(SecureAiGateway.configuredEndpoint(c).isBlank()){
    response="Cloud AI is not connected yet. Here's what CARPE can do locally:\n\n$local"
    history+=AiTurn("assistant",local)
