@@ -131,7 +131,7 @@ class ScreenAuditService : Service() {
             .addOnSuccessListener { result ->
                 if (!stopped && generation == sessionGeneration) {
                     sessionAnalyzer.observe(result.text)
-                    store.save(sessionAnalyzer.report())
+                    store.save(sessionAnalyzer.report(sourceLabel = store.sourceLabel()))
                 }
             }
             .addOnFailureListener {
@@ -207,7 +207,7 @@ class ScreenAuditService : Service() {
         sessionGeneration++
         handler.removeCallbacks(sample)
         handler.removeCallbacks(sessionTimeout)
-        store.save(analyzer.report())
+        store.save(analyzer.report(sourceLabel = store.sourceLabel()))
         store.setActive(false)
         virtualDisplay?.release()
         virtualDisplay = null
