@@ -205,13 +205,23 @@ private class ChatSession {
  ActionCard("Notification intelligence","Grant CARPE notification access to measure which apps repeatedly compete for your attention."){settingsLauncher.launch(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"))}
  ActionCard("Notification controls","Open Android notification settings to silence apps that pull you back."){c.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE,c.packageName))}
  ActionCard("Privacy dashboard","Review Android permissions granted to apps on this device."){try{c.startActivity(Intent(Settings.ACTION_PRIVACY_SETTINGS))}catch(_:Exception){}}
+ val pressure=remember(c){NotificationPressure(c)}
+ val noisyApps=pressure.topToday()
+ if(noisyApps.isNotEmpty()){
+  Text("Notifications competing for attention today",fontWeight=FontWeight.Bold)
+  noisyApps.forEach{(pkg,count)->
+   Card{Row(Modifier.fillMaxWidth().padding(12.dp),horizontalArrangement=Arrangement.SpaceBetween){
+    Column(Modifier.weight(1f)){Text(pkg.substringAfterLast('.'),fontWeight=FontWeight.Bold);Text("$count notifications",fontSize=12.sp)}
+    TextButton(onClick={runCatching{c.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE,pkg))}}){Text("Review")}
+   }}
+  }
+ }
  if(granted){
   val apps=u.last24Hours().take(12)
   val learning=remember{LearningStore(c)}
   var ratingsRevision by remember{mutableIntStateOf(0)}
   val ratings=remember(apps,ratingsRevision){apps.associate{it.packageName to learning.rating(it.packageName)}}
   val report=AttentionAnalyzer().analyze(apps,ratings)
-  val pressure=remember{NotificationPressure(c)}
   Text("Attention intelligence",fontWeight=FontWeight.Bold)
   Text(report.totalObservedMinutes.toString()+" foreground minutes observed locally.")
   report.signals.take(8).forEach{sig->
