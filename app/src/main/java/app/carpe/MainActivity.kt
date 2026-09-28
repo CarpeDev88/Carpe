@@ -77,7 +77,8 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
  val historyStore=remember(coachContext){BehaviorHistory(coachContext)}
  if(u.isGranted()) historyStore.capture(top,a.todayMinutes())
  val patterns=PatternEngine().findings(historyStore.recent(),top)
- val suggestions=AiCoach().suggest(CoachContext(a.todayMinutes(),goals,top,a.recent()))
+ val learning=remember(coachContext){LearningStore(coachContext)}
+ val suggestions=AiCoach().suggest(CoachContext(a.todayMinutes(),goals,top,a.recent()),learning)
  Text("What CARPE is noticing",fontWeight=FontWeight.Bold,fontSize=20.sp)
  patterns.forEach{finding->
   ElevatedCard{Column(Modifier.fillMaxWidth().padding(16.dp)){
@@ -88,7 +89,15 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
   }}
  }
  Text("Suggested next moves",fontWeight=FontWeight.Bold,fontSize=20.sp)
- suggestions.forEach{s->Card{Column(Modifier.fillMaxWidth().padding(18.dp)){Text(s.title,fontWeight=FontWeight.Bold);Text(s.reason);Text("Suggested: "+s.minutes+" min",color=Green)}}}
+ suggestions.forEach{s->Card{Column(Modifier.fillMaxWidth().padding(18.dp)){
+  Text(s.title,fontWeight=FontWeight.Bold);Text(s.reason);Text("Suggested: "+s.minutes+" min",color=Green)
+  Text("Why: based on goals and local patterns you allowed CARPE to use.",fontSize=12.sp,color=Color.DarkGray)
+  var rated by remember(s.title){mutableStateOf(false)}
+  if(!rated) Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
+   TextButton(onClick={learning.recordHelpful(when(s.actionType){"cook"->CarpeIntent.COOK;"focus"->CarpeIntent.FOCUS;"move"->CarpeIntent.MOVE;"save"->CarpeIntent.SPEND;else->CarpeIntent.UNKNOWN},true);rated=true}){Text("Helpful")}
+   TextButton(onClick={learning.recordHelpful(when(s.actionType){"cook"->CarpeIntent.COOK;"focus"->CarpeIntent.FOCUS;"move"->CarpeIntent.MOVE;"save"->CarpeIntent.SPEND;else->CarpeIntent.UNKNOWN},false);rated=true}){Text("Not helpful")}
+  } else Text("Thanks. CARPE will use that locally.",fontSize=12.sp,color=Green)
+ }}}
  Text("Why this is AI-assisted",fontWeight=FontWeight.Bold);Text("CARPE combines your explicit goals, your feedback, completed actions, and—only if you grant it—local app-usage patterns. The recommendation engine is designed to optimize for your stated life goals rather than engagement.")
 }
 @Composable private fun Focus(p:PaddingValues,a:ActionStore,changed:()->Unit)=Page(p,"Focus","A timer that is successful when you stop looking at CARPE."){
