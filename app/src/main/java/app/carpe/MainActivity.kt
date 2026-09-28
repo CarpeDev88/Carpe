@@ -79,6 +79,8 @@ private class ChatSession {
     1->Coach(p,prefs,usage,actions,refresh,onAction={type->
      when(type){
       "focus"->tab=2
+      "offline"->{chat.input.value="Help me choose one offline activity that fits my time and energy. Offer a few options without assuming screen use is bad.";tab=0}
+      "reset"->{chat.input.value="Help me make a short, nonjudgmental pause from technology and choose what I want to do next.";tab=0}
       "cook"->{chat.input.value="Help me cook a meal with what I have";tab=0}
       "move"->{chat.input.value="Help me choose a movement I can start now";tab=0}
       "save"->{chat.input.value="Help me pause before a purchase";tab=0}
@@ -188,11 +190,13 @@ private class ChatSession {
  val goals=names.filter{prefs.getBoolean("goal_"+it.lowercase().replace(" ","_").replace("&","and"),it=="More time offline"||it=="Focused work")}
  val top=if(u.isGranted())u.last24Hours().take(12) else emptyList()
  val coachContext=androidx.compose.ui.platform.LocalContext.current
- val goalStore=remember(coachContext){UserGoalStore(coachContext)}
- val userGoals=remember(r){goalStore.goals()}
- val patterns=PatternEngine().findings(top)
- val learning=remember(coachContext){LearningStore(coachContext)}
- val suggestions=AiCoach().suggest(CoachContext(a.todayMinutes(),goals,top,a.recent()),learning)
+  val goalStore=remember(coachContext){UserGoalStore(coachContext)}
+  val userGoals=remember(r){goalStore.goals()}
+  val patterns=PatternEngine().findings(top)
+  val learning=remember(coachContext){LearningStore(coachContext)}
+  val ratings=top.associate{it.packageName to learning.rating(it.packageName)}
+  val intentions=top.associate{it.packageName to learning.intentional(it.packageName)}
+  val suggestions=AiCoach().suggest(CoachContext(a.todayMinutes(),goals,top,a.recent(),ratings,intentions),learning)
  Text("What CARPE is noticing",fontWeight=FontWeight.Bold,fontSize=20.sp)
  patterns.forEach{finding->
   ElevatedCard{Column(Modifier.fillMaxWidth().padding(16.dp)){
@@ -204,13 +208,13 @@ private class ChatSession {
  }
  Text("Suggested next moves",fontWeight=FontWeight.Bold,fontSize=20.sp)
  suggestions.forEach{s->Card{Column(Modifier.fillMaxWidth().padding(18.dp)){
-  Text(s.title,fontWeight=FontWeight.Bold);Text(s.reason);Text("Suggested: "+s.minutes+" min",color=Orange)
-  Text("Why: based on goals and local patterns you allowed CARPE to use.",fontSize=12.sp,color=Color.DarkGray)
-  TextButton(onClick={onAction(s.actionType)}){Text(when(s.actionType){"focus"->"Start focus";"cook"->"Plan a meal";"move"->"Choose movement";"save"->"Review a purchase";"content_plan"->"Make a private plan";"perspectives"->"Explore perspectives";else->"Set goals"})}
+  Text(s.title,fontWeight=FontWeight.Bold);Text(s.reason);Text("Optional starting point: "+s.minutes+" min",color=Orange)
+  Text("Based on the goal you chose and any local assessment you gave. This suggestion is generated on your device.",fontSize=12.sp,color=Color.DarkGray)
+  TextButton(onClick={onAction(s.actionType)}){Text(when(s.actionType){"focus"->"Start focus";"cook"->"Plan a meal";"move"->"Choose movement";"save"->"Review a purchase";"offline"->"Choose an offline activity";"reset"->"Plan a pause";"content_plan"->"Make a private plan";"perspectives"->"Explore perspectives";else->"Set goals"})}
   var rated by remember(s.title){mutableStateOf(false)}
   if(!rated) Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
-   TextButton(onClick={learning.recordHelpful(when(s.actionType){"cook"->CarpeIntent.COOK;"focus"->CarpeIntent.FOCUS;"move"->CarpeIntent.MOVE;"save"->CarpeIntent.SPEND;"content_plan","perspectives"->CarpeIntent.REFLECT;else->CarpeIntent.UNKNOWN},true);rated=true}){Text("Helpful")}
-   TextButton(onClick={learning.recordHelpful(when(s.actionType){"cook"->CarpeIntent.COOK;"focus"->CarpeIntent.FOCUS;"move"->CarpeIntent.MOVE;"save"->CarpeIntent.SPEND;"content_plan","perspectives"->CarpeIntent.REFLECT;else->CarpeIntent.UNKNOWN},false);rated=true}){Text("Not helpful")}
+   TextButton(onClick={learning.recordHelpful(when(s.actionType){"cook"->CarpeIntent.COOK;"focus"->CarpeIntent.FOCUS;"move"->CarpeIntent.MOVE;"save"->CarpeIntent.SPEND;"offline"->CarpeIntent.OFFLINE_ACTIVITY;"content_plan","perspectives","reset"->CarpeIntent.REFLECT;else->CarpeIntent.UNKNOWN},true);rated=true}){Text("Helpful")}
+   TextButton(onClick={learning.recordHelpful(when(s.actionType){"cook"->CarpeIntent.COOK;"focus"->CarpeIntent.FOCUS;"move"->CarpeIntent.MOVE;"save"->CarpeIntent.SPEND;"offline"->CarpeIntent.OFFLINE_ACTIVITY;"content_plan","perspectives","reset"->CarpeIntent.REFLECT;else->CarpeIntent.UNKNOWN},false);rated=true}){Text("Not helpful")}
   } else Text("Thanks. CARPE will use that locally.",fontSize=12.sp,color=Orange)
  }}}
  if(userGoals.isNotEmpty()){
@@ -227,7 +231,7 @@ private class ChatSession {
    }}
   }
  }
- Text("Why this is AI-assisted",fontWeight=FontWeight.Bold);Text("CARPE combines your explicit goals, your feedback, completed actions, and—only if you grant it—local app-usage patterns. The recommendation engine is designed to optimize for your stated life goals rather than engagement.")
+ Text("How these suggestions work",fontWeight=FontWeight.Bold);Text("These are local rules, not AI-generated advice. They use the goals you selected and, only if you grant access or rate an app, your on-device observations. AI is available separately when you choose to send a request.")
 }
 @Composable private fun Focus(p:PaddingValues,a:ActionStore,changed:()->Unit)=Page(p,"Focus","A timer that is successful when you stop looking at CARPE."){
  val context=androidx.compose.ui.platform.LocalContext.current
@@ -525,7 +529,7 @@ private fun cueSummary(report:ScreenAuditReport,count:Int):String =
  val learning=remember(context){LearningStore(context)}
  var feedbackRevision by remember{mutableIntStateOf(0)}
  val feedbackSummary=remember(feedbackRevision){learning.feedbackSummary()}
- val trackedIntents=listOf(CarpeIntent.COOK to "Cooking",CarpeIntent.FOCUS to "Focus",CarpeIntent.MOVE to "Movement",CarpeIntent.SPEND to "Spending",CarpeIntent.REFLECT to "Reflection")
+ val trackedIntents=listOf(CarpeIntent.COOK to "Cooking",CarpeIntent.FOCUS to "Focus",CarpeIntent.MOVE to "Movement",CarpeIntent.SPEND to "Spending",CarpeIntent.OFFLINE_ACTIVITY to "Offline activity",CarpeIntent.REFLECT to "Reflection")
  var hasRecommendationFeedback=false
  trackedIntents.forEach{(intent,label)->
   val counts=feedbackSummary[intent] ?: IntentFeedback(0,0)

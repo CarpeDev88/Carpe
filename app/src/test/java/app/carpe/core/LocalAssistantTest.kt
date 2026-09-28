@@ -44,7 +44,9 @@ class LocalAssistantTest {
         val intent = IntentRouter().classify(prompt).intent
 
         assertEquals(CarpeIntent.GOAL, intent)
-        assertTrue(LocalAssistant.reply(intent, prompt).contains("close CARPE"))
+        val reply = LocalAssistant.reply(intent, prompt)
+        assertTrue(reply.contains("Walk after dinner"))
+        assertTrue(reply.contains("close CARPE"))
     }
 
     @Test
@@ -57,5 +59,14 @@ class LocalAssistantTest {
         assertTrue(LocalAssistant.reply(contentIntent, "").contains("does not inspect browsing"))
         assertEquals(CarpeIntent.POLITICAL_BALANCE, politicsIntent)
         assertTrue(LocalAssistant.reply(politicsIntent, "").contains("your own conclusion"))
+    }
+
+    @Test
+    fun offlineGoalHasUsefulGuidanceWithoutAiOrUsageAccess() {
+        val prompt = "Help me choose an offline activity that fits my time and energy"
+        val intent = IntentRouter().classify(prompt).intent
+
+        assertEquals(CarpeIntent.OFFLINE_ACTIVITY, intent)
+        assertTrue(LocalAssistant.reply(intent, prompt).contains("You do not need to reduce screen time"))
     }
 }

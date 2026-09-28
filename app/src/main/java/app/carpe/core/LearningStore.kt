@@ -2,7 +2,7 @@ package app.carpe.core
 
 import android.content.Context
 
-enum class CarpeIntent { COOK, FOCUS, MOVE, SPEND, REFLECT, GOAL, CONTENT_GOAL, POLITICAL_BALANCE, UNKNOWN }
+enum class CarpeIntent { COOK, FOCUS, MOVE, SPEND, REFLECT, OFFLINE_ACTIVITY, GOAL, CONTENT_GOAL, POLITICAL_BALANCE, UNKNOWN }
 
 data class IntentResult(val intent: CarpeIntent, val confidence: Float)
 
@@ -14,11 +14,12 @@ class IntentRouter {
    has("next step toward this goal","plan a step for this goal") -> IntentResult(CarpeIntent.GOAL,.9f)
    has("porn","pornography","sexual content") -> IntentResult(CarpeIntent.CONTENT_GOAL,.9f)
    has("political viewpoints","multiple political viewpoints","different political perspectives") -> IntentResult(CarpeIntent.POLITICAL_BALANCE,.9f)
+   has("offline activity","offline alternative") -> IntentResult(CarpeIntent.OFFLINE_ACTIVITY,.88f)
    has("cook","recipe","dinner","meal","ingredient","food") -> IntentResult(CarpeIntent.COOK,.92f)
    has("focus","work","study","concentrate","productive") -> IntentResult(CarpeIntent.FOCUS,.90f)
    has("walk","workout","exercise","move","outside","gym") -> IntentResult(CarpeIntent.MOVE,.90f)
    has("buy","spend","purchase","save","shopping") -> IntentResult(CarpeIntent.SPEND,.88f)
-   has("bored","scroll","stuck","distracted","doomscroll") -> IntentResult(CarpeIntent.REFLECT,.82f)
+   has("bored","scroll","stuck","distracted","doomscroll","pause from technology") -> IntentResult(CarpeIntent.REFLECT,.82f)
    else -> IntentResult(CarpeIntent.UNKNOWN,.25f)
   }
  }

@@ -50,7 +50,7 @@ Product constraints:
 - No sale of personal data.
 - No paid placement or pay-to-influence recommendations.
 - No engagement optimization designed to keep people inside Carpe.
-- AI recommendations optimize for goals the user chooses, not commercial outcomes.
+- CARPE recommendations support goals the user chooses, not commercial outcomes; local suggestions do not require AI.
 - Optional data access requires informed opt-in and Carpe remains useful when access is declined.
 - Screen inspection is user-started per session, time-limited, visible while active, processed locally, and summarized without retaining captured images or OCR text.
 - CARPE reports observable cues and uncertainty; it does not claim access to a platform's internal recommendation algorithm.
