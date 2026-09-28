@@ -120,8 +120,8 @@ private class ChatSession {
    TextButton(onClick=openSettings){Text("Connect")}
   }
  }
- else if(directKeyStore.hasKey()) Text("Your message, recent chat, and any enabled AI profile go directly to Google Gemini. AI Studio free-tier prompts may be used to improve Google products. Avoid sensitive details. Keys stored in a mobile app can still be extracted; use this direct connection for private testing.",color=Color.DarkGray,fontSize=12.sp)
- else Text("When you tap Send, your message, recent chat, and any AI profile you enabled go to the CARPE service and its AI provider.",color=Color.DarkGray,fontSize=12.sp)
+ else if(directKeyStore.hasKey()) Text("When you tap Send, only your current request and, if enabled, saved profile preferences go directly to Google Gemini. Earlier chat turns stay on this device. AI Studio free-tier prompts may be used to improve Google products; avoid sensitive details. Keys stored in a mobile app can still be extracted, so use this connection for private testing.",color=Color.DarkGray,fontSize=12.sp)
+ else Text("When you tap Send, only your current request and any enabled saved profile preferences go to the configured CARPE service and its AI provider. Earlier chat turns stay on this device.",color=Color.DarkGray,fontSize=12.sp)
  OutlinedTextField(value=input,onValueChange={input=it},modifier=Modifier.fillMaxWidth().heightIn(min=88.dp),placeholder={Text("Ask CARPE anything…")},maxLines=6)
  Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)){OutlinedButton(onClick={try{voice.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM).putExtra(RecognizerIntent.EXTRA_PROMPT,"Talk to CARPE"))}catch(_:Exception){response="Voice recognition isn't available on this device."}},modifier=Modifier.weight(1f)){Text("🎤  Speak")};Button(onClick={act()},enabled=!thinking,modifier=Modifier.weight(1f)){Text(if(thinking)"Thinking…" else "Send")}}
  if(response.isNotBlank()) ElevatedCard{Text(response,Modifier.fillMaxWidth().padding(16.dp))}
@@ -268,7 +268,7 @@ private class ChatSession {
  var testing by remember{mutableStateOf(false)}
  val scope=rememberCoroutineScope()
  Text("AI & privacy",fontWeight=FontWeight.Bold,fontSize=20.sp)
- Text("Connect directly through Google AI Studio's free-tier Gemini API, with no CARPE server or billing-linked Cloud Run service. Free-tier prompts may be used by Google to improve products; avoid sensitive details. A key encrypted on this device can still be extracted from a mobile app, so use this direct option for private testing.",color=Color.DarkGray,fontSize=13.sp)
+ Text("Connect directly through Google AI Studio's free-tier Gemini API, with no CARPE server or billing-linked Cloud Run service. When you send a request, CARPE sends only that request and optional saved profile preferences; earlier chat turns stay on this device. Free-tier prompts may be used by Google to improve products; avoid sensitive details. A key encrypted on this device can still be extracted from a mobile app, so use this direct option for private testing.",color=Color.DarkGray,fontSize=13.sp)
  OutlinedButton(onClick={runCatching{context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://aistudio.google.com/app/apikey")))}.onFailure{serviceStatus="Couldn't open AI Studio."}}){Text("Get a Gemini API key in AI Studio")}
  OutlinedTextField(value=apiKeyInput,onValueChange={apiKeyInput=it},modifier=Modifier.fillMaxWidth(),label={Text(if(directConfigured)"Replace Gemini API key" else "Gemini API key")},placeholder={Text("Paste your AI Studio key")},singleLine=true,visualTransformation=PasswordVisualTransformation(),keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Password))
  Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
