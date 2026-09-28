@@ -19,6 +19,12 @@ import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -179,6 +185,8 @@ private class ChatSession {
 }
 @Composable private fun Page(p:PaddingValues,title:String,sub:String,body:@Composable ColumnScope.()->Unit){Column(Modifier.fillMaxSize().padding(p).verticalScroll(rememberScrollState()).padding(horizontal=20.dp, vertical=18.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){Text("CARPE",color=Orange,fontWeight=FontWeight.Bold,letterSpacing=3.sp,fontSize=13.sp);Text(title,fontSize=30.sp,fontWeight=FontWeight.Bold,color=Ink);Text(sub,color=Muted,fontSize=15.sp,lineHeight=21.sp);body();Spacer(Modifier.height(30.dp))}}
 @Composable private fun Today(p:PaddingValues,c:Context,s:ActionStore,changed:()->Unit,openSettings:()->Unit,openFocus:()->Unit,chat:ChatSession,scope:CoroutineScope)=Page(p,"What matters now?","Type what you need or use your voice."){
+ val composerFocus=remember{FocusRequester()}
+ val keyboard=LocalSoftwareKeyboardController.current
  var input by chat.input; var response by chat.response; var thinking by chat.thinking
  var lastIntent by chat.lastIntent; var recipeQuery by chat.recipeQuery
  var awaitingCookFollowup by chat.awaitingCookFollowup
@@ -219,11 +227,28 @@ private class ChatSession {
    }
   );thinking=false}
  }
- OutlinedTextField(value=input,onValueChange={input=it},modifier=Modifier.fillMaxWidth().heightIn(min=88.dp),placeholder={Text("Ask CARPE anything…")},maxLines=6)
+ ElevatedCard(onClick={composerFocus.requestFocus();keyboard?.show()},colors=CardDefaults.elevatedCardColors(containerColor=Peach)){
+  Row(Modifier.fillMaxWidth().padding(12.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)){
+   CoachAvatar(84.dp)
+   Column(Modifier.weight(1f)){
+    Text("Your CARPE coach",fontWeight=FontWeight.Bold,fontSize=19.sp,color=Ink)
+    Text(if(thinking)"Working on your request…" else "Small steps. Your direction. Tap to talk with me.",color=Muted,lineHeight=21.sp)
+   }
+  }
+ }
+ OutlinedTextField(value=input,onValueChange={input=it},modifier=Modifier.focusRequester(composerFocus).fillMaxWidth().heightIn(min=88.dp),placeholder={Text("Ask CARPE anything…")},maxLines=6)
  Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)){OutlinedButton(onClick={try{voice.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM).putExtra(RecognizerIntent.EXTRA_PROMPT,"Talk to CARPE"))}catch(_:Exception){response="Voice recognition isn't available on this device."}},modifier=Modifier.weight(1f)){Text("Speak")};Button(onClick={act()},enabled=!thinking,modifier=Modifier.weight(1f)){Text(if(thinking)"Thinking…" else "Send")}}
  Card(colors=CardDefaults.cardColors(containerColor=Peach)){Row(Modifier.fillMaxWidth().padding(horizontal=14.dp, vertical=8.dp),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text(if(!directKeyStore.hasKey() && SecureAiGateway.configuredEndpoint(c).isBlank())"AI is optional" else "AI connection ready",fontWeight=FontWeight.SemiBold,color=Ink,fontSize=13.sp);Text(if(!directKeyStore.hasKey() && SecureAiGateway.configuredEndpoint(c).isBlank())"Local guidance works without connecting." else "Only the current request is sent when you choose Send.",fontSize=12.sp,color=Muted)};TextButton(onClick=openSettings){Text(if(!directKeyStore.hasKey() && SecureAiGateway.configuredEndpoint(c).isBlank())"Connect" else "Details")}}}
  if(directKeyStore.hasKey()) Text("Google AI Studio may use free-tier prompts to improve Google products. Avoid sensitive details. Earlier chat turns and captured screen samples are never included.",color=Muted,fontSize=12.sp)
- if(response.isNotBlank()) ElevatedCard{Text(response,Modifier.fillMaxWidth().padding(16.dp))}
+ if(response.isNotBlank()) ElevatedCard{
+  Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
+   Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)){
+    CoachAvatar(44.dp)
+    Text("CARPE coach",fontWeight=FontWeight.Bold,color=Orange)
+   }
+   Text(response)
+  }
+ }
  if(response.startsWith("Cloud AI is unavailable")) TextButton(onClick=openSettings){Text("Check AI connection")}
  if(response.isNotBlank()&&!actionLogged){
   val completed=when(lastIntent){
@@ -658,6 +683,10 @@ private fun cueSummary(report:ScreenAuditReport,count:Int):String =
   Page(padding,
    when(step){0->"Welcome to CARPE";1->"A moment for you";else->"Start with what matters"},
    when(step){0->"Technology should serve your life.";1->"There is no right or wrong answer.";else->"One small starting point. You can change direction anytime."}){
+   Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(14.dp)){
+    CoachAvatar(96.dp)
+    Text(if(step==0)"Hi, I’m your CARPE coach. You set the direction." else "I’m here to help you find what works for you.",Modifier.weight(1f),fontSize=17.sp,lineHeight=23.sp,color=Orange,fontWeight=FontWeight.Medium)
+   }
    if(step==0){
     Text("CARPE is a counter-algorithm app built around your well-being. Our vision is to help you understand how technology shapes your attention, make deliberate choices, and create more room for the life you want.",fontSize=18.sp,lineHeight=26.sp)
     Card(colors=CardDefaults.cardColors(containerColor=Peach)){
@@ -703,4 +732,10 @@ private fun cueSummary(report:ScreenAuditReport,count:Int):String =
   }
   }
  }
+}
+
+@Composable private fun CoachAvatar(size:Dp){
+ Image(painter=painterResource(R.drawable.carpe_coach),
+  contentDescription="CARPE’s friendly orange robot coach",
+  modifier=Modifier.size(size))
 }
