@@ -261,8 +261,7 @@ private class ChatSession {
    Text("Recommendation labels: ${auditReport.recommendationLabelScreens}")
    Text("Continue or autoplay prompts: ${auditReport.continuePromptScreens}")
    Text("Screens with similar visible text: ${auditReport.similarScreens}")
-   if(auditReport.recurringWords.isNotEmpty())Text("Repeated words: ${auditReport.recurringWords.joinToString()}")
-   Text("These counts describe visible text in this sample, not the full feed or the app’s internal ranking.",fontSize=12.sp,color=Muted)
+   Text("These counts describe visible text in this sample, not the full feed or the app’s internal ranking. CARPE does not keep the words it reads.",fontSize=12.sp,color=Muted)
    TextButton(onClick={auditStore.clear();auditRefresh++},enabled=!isAuditing){Text("Clear this report")}
   }}
  }
