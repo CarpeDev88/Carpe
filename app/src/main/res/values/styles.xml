@@ -2,7 +2,7 @@
     <style name="Theme.Carpe" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:windowLightStatusBar">true</item>
-        <item name="android:navigationBarColor">#F5F1E8</item>
-        <item name="android:statusBarColor">#F5F1E8</item>
+        <item name="android:navigationBarColor">#FFFFFBF8</item>
+        <item name="android:statusBarColor">#FFFFFBF8</item>
     </style>
 </resources>
