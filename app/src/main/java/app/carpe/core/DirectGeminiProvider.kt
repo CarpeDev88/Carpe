@@ -88,23 +88,15 @@ class DirectGeminiProvider(private val keyStore: AiStudioKeyStore) : CarpeAiProv
             val apiKey = keyStore.getKey()
                 ?: return@withContext Result.failure(IllegalStateException("Save a Gemini API key in Me → AI & privacy first."))
             runCatching {
-                val safeMessage = CloudDataPolicy.sanitize(CloudAiContext(userRequest = message)).userRequest
+                val context = CloudDataPolicy.forUserRequest(message, profile)
                 val body = JSONObject().apply {
-                    put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", SYSTEM_PROMPT))))
-                    put("contents", JSONArray().apply {
-                        history.takeLast(10).forEach { turn ->
-                            val text = turn.text.take(1500)
-                            if (text.isNotBlank()) put(content(turn.role, text))
-                        }
-                        put(content("user", safeMessage))
-                    })
+                    put("systemInstruction", JSONObject().put("parts", JSONArray().apply {
+                        put(JSONObject().put("text", SYSTEM_PROMPT))
+                        context.userChosenPreferences.forEach { put(JSONObject().put("text", "User-chosen preference: $it")) }
+                    }))
+                    // Keep conversation history on-device; send only the current request.
+                    put("contents", JSONArray().put(content("user", context.userRequest)))
                     put("generationConfig", JSONObject().put("temperature", 0.5).put("maxOutputTokens", 1200))
-                }.also { request ->
-                    // Keep optional profile context explicit and separate from raw device data.
-                    if (profile.isNotBlank()) {
-                        val prior = request.getJSONObject("systemInstruction").getJSONArray("parts")
-                        prior.put(JSONObject().put("text", "User-enabled preferences:\n${profile.take(2500)}"))
-                    }
                 }.toString()
 
                 val connection = (URL(ENDPOINT).openConnection() as HttpURLConnection).apply {
