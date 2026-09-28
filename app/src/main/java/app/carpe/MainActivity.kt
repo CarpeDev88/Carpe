@@ -16,6 +16,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -46,11 +50,12 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
 }
 @Composable private fun Page(p:PaddingValues,title:String,sub:String,body:@Composable ColumnScope.()->Unit){Column(Modifier.fillMaxSize().padding(p).verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){Text("CARPE",color=Green,fontWeight=FontWeight.Bold,letterSpacing=3.sp);Text(title,fontSize=32.sp,fontWeight=FontWeight.Bold);Text(sub,color=Color.DarkGray);body();Spacer(Modifier.height(30.dp))}}
 @Composable private fun Today(p:PaddingValues,c:Context,s:ActionStore,changed:()->Unit)=Page(p,"What do you want to do right now?","Tell CARPE what you need. Type naturally or use your voice."){
- var input by remember{mutableStateOf("")}; var response by remember{mutableStateOf("")}
+ var input by remember{mutableStateOf("")}; var response by remember{mutableStateOf("")}; var thinking by remember{mutableStateOf(false)}
+ val prefs=remember{c.getSharedPreferences("carpe",Context.MODE_PRIVATE)}; val profile=remember{UserProfileStore(c)}; val scope=rememberCoroutineScope()
  val voice=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()){r->r.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.let{input=it}}
- fun act(){val q=input.trim();if(q.isBlank())return;response=when{q.contains("cook",true)||q.contains("dinner",true)||q.contains("recipe",true)->"Let's find something worth cooking. I've opened a recipe search.";q.contains("walk",true)||q.contains("workout",true)||q.contains("exercise",true)||q.contains("move",true)->"Start with 15 minutes of movement. The goal is to leave CARPE behind.";q.contains("focus",true)||q.contains("work",true)->"Let's protect 25 minutes for meaningful work. Open Focus when you're ready.";q.contains("buy",true)||q.contains("spend",true)||q.contains("money",true)||q.contains("save",true)->"Before spending, pause and ask whether the purchase serves a goal you chose.";else->"I heard you. CARPE is learning to turn open-ended requests into useful actions instead of forcing you through menus."};if(q.contains("cook",true)||q.contains("dinner",true)||q.contains("recipe",true)){val search=URLEncoder.encode(q,"UTF-8");c.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://www.google.com/search?q="+search)))}}
+ fun act(){val q=input.trim();if(q.isBlank()||thinking)return;profile.learn(q);thinking=true;scope.launch{response=withContext(Dispatchers.IO){GeminiClient(prefs.getString("gemini_api_key","") ?: "").ask(q,profile.summary())};thinking=false}}
  OutlinedTextField(value=input,onValueChange={input=it},modifier=Modifier.fillMaxWidth().heightIn(min=120.dp),placeholder={Text("Ask CARPE anything…")},maxLines=6)
- Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)){OutlinedButton(onClick={try{voice.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM).putExtra(RecognizerIntent.EXTRA_PROMPT,"Talk to CARPE"))}catch(_:Exception){response="Voice recognition isn't available on this device."}},modifier=Modifier.weight(1f)){Text("🎤  Speak")};Button(onClick={act()},modifier=Modifier.weight(1f)){Text("Send")}}
+ Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)){OutlinedButton(onClick={try{voice.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM).putExtra(RecognizerIntent.EXTRA_PROMPT,"Talk to CARPE"))}catch(_:Exception){response="Voice recognition isn't available on this device."}},modifier=Modifier.weight(1f)){Text("🎤  Speak")};Button(onClick={act()},enabled=!thinking,modifier=Modifier.weight(1f)){Text(if(thinking)"Thinking…" else "Send")}}
  if(response.isNotBlank()) ElevatedCard{Text(response,Modifier.fillMaxWidth().padding(16.dp))}
  Text("Suggestions",fontSize=18.sp,fontWeight=FontWeight.Bold)
  ActionCard("Cook something","Search recipes and make a meal."){input="Find me something healthy to cook for dinner"}
@@ -120,6 +125,15 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
  Text("CARPE does not require these permissions. Granting them should add capability, never unlock basic dignity or usefulness.",color=Green)
 }
 @Composable private fun Me(p:PaddingValues,prefs:android.content.SharedPreferences,a:ActionStore,r:Int)=Page(p,"Your life, not a feed","Set what CARPE should optimize for and review what you actually did."){
+ val context=androidx.compose.ui.platform.LocalContext.current
+ val profile=remember{UserProfileStore(context)}
+ var aiProfile by remember{mutableStateOf(profile.enabled())}
+ var apiKey by remember{mutableStateOf(prefs.getString("gemini_api_key","") ?: "")}
+ Text("Google AI",fontWeight=FontWeight.Bold,fontSize=20.sp)
+ OutlinedTextField(apiKey,{apiKey=it;prefs.edit().putString("gemini_api_key",it.trim()).apply()},Modifier.fillMaxWidth(),label={Text("Gemini API key")},visualTransformation=androidx.compose.ui.text.input.PasswordVisualTransformation())
+ Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Column(Modifier.weight(1f)){Text("Build my AI profile");Text("Learn from what I tell CARPE. Stored locally and sent to Google only with my requests.",color=Color.DarkGray,fontSize=12.sp)};Switch(aiProfile,{aiProfile=it;profile.setEnabled(it)})}
+ if(aiProfile){Text("What CARPE remembers",fontWeight=FontWeight.Bold);Text(profile.summary(),fontSize=13.sp);OutlinedButton(onClick={profile.clear()}){Text("Clear AI profile")}}
+ HorizontalDivider()
  val goals=listOf("More time offline","Fitness & movement","Home cooking","Focused work","Saving money","Less compulsive content")
  goals.forEach{g->val k="goal_"+g.lowercase().replace(" ","_").replace("&","and");var on by remember{mutableStateOf(prefs.getBoolean(k,g=="More time offline"||g=="Focused work"))};Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text(g,Modifier.weight(1f));Switch(on,{on=it;prefs.edit().putBoolean(k,it).apply()})}}
  HorizontalDivider();Text(a.todayMinutes().toString()+" minutes invested in deliberate actions",fontSize=22.sp,fontWeight=FontWeight.Bold)
