@@ -269,7 +269,7 @@ private class ChatSession {
  Card(colors=CardDefaults.cardColors(containerColor=White)){Row(Modifier.fillMaxWidth().padding(14.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)){
   Column(Modifier.weight(1f)){
    Text("Compare recent samples",fontWeight=FontWeight.SemiBold,color=Ink)
-   Text("Optional. Keeps up to 5 aggregate summaries on this device; no images or recognized words.",fontSize=12.sp,color=Muted,lineHeight=16.sp)
+   Text("Optional. Keeps up to 5 aggregate summaries on this device; no images or recognized words. Turning this off stops new saves; clear saved summaries below.",fontSize=12.sp,color=Muted,lineHeight=16.sp)
   }
   Switch(checked=compareSamples,onCheckedChange={enabled->compareSamples=enabled;auditStore.setHistoryEnabled(enabled);auditRefresh++})
  }}
@@ -304,7 +304,7 @@ private class ChatSession {
   }}
  }
  if(compareSamples && auditComparison!=null){
-  Text("Across your last two samples",fontWeight=FontWeight.Bold,fontSize=19.sp,color=Ink)
+  Text("Latest two samples for this label",fontWeight=FontWeight.Bold,fontSize=19.sp,color=Ink)
   Card(colors=CardDefaults.cardColors(containerColor=White)){Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){
    Text(if(auditComparison.latest.sourceLabel.isBlank())"Unlabeled samples" else auditComparison.latest.sourceLabel,fontWeight=FontWeight.SemiBold)
    auditComparison.cueRates().forEach{rate->
