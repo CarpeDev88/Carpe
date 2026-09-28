@@ -29,4 +29,21 @@ class ScreenAuditAnalyzerTest {
         assertEquals(0, analyzer.report().sampledScreens)
         assertEquals(0, analyzer.report().adLabelScreens)
     }
+
+    @Test
+    fun reportsCueShareOfSmallSampleAndHandlesInvalidCounts() {
+        val report = ScreenAuditReport(
+            sampledScreens = 8,
+            adLabelScreens = 3,
+            recommendationLabelScreens = 0,
+            continuePromptScreens = 0,
+            similarScreens = 0,
+            completedAt = 1L
+        )
+
+        assertEquals(38, report.percentOfSamples(report.adLabelScreens))
+        assertEquals(0, report.percentOfSamples(-1))
+        assertEquals(100, report.percentOfSamples(99))
+        assertEquals(null, report.copy(sampledScreens = 0).percentOfSamples(1))
+    }
 }
