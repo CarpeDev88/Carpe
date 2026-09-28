@@ -48,7 +48,7 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
 @Composable private fun Page(p:PaddingValues,title:String,sub:String,body:@Composable ColumnScope.()->Unit){Column(Modifier.fillMaxSize().padding(p).verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){Text("CARPE",color=Green,fontWeight=FontWeight.Bold,letterSpacing=3.sp);Text(title,fontSize=32.sp,fontWeight=FontWeight.Bold);Text(sub,color=Color.DarkGray);body();Spacer(Modifier.height(30.dp))}}
 @Composable private fun Today(p:PaddingValues,c:Context,s:ActionStore,changed:()->Unit)=Page(p,"What do you want to do right now?","Tell CARPE what you need. Type naturally or use your voice."){
  var input by remember{mutableStateOf("")}; var response by remember{mutableStateOf("")}; var thinking by remember{mutableStateOf(false)}
- val scope=rememberCoroutineScope(); val gateway=remember{SecureAiGateway()}; val history=remember{mutableStateListOf<AiTurn>()}
+ val scope=rememberCoroutineScope(); val gateway=remember{SecureAiGateway(c)}; val history=remember{mutableStateListOf<AiTurn>()}
  val profile=remember{UserProfileStore(c)}
  val voice=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()){r->r.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.let{input=it}}
  val router=remember{IntentRouter()}
@@ -65,7 +65,8 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
   scope.launch{gateway.ask(q,if(profile.enabled())profile.summary() else "",prior).fold(
    onSuccess={answer->response=answer;history+=AiTurn("assistant",answer)},
    onFailure={e->
-    response=local ?: (e.message ?: "CARPE could not reach its AI service. Please try again.")
+    response=if(local!=null) "Cloud AI is unavailable (${e.message ?: "connection failed"}). Here's a local suggestion:\n\n$local"
+     else (e.message ?: "CARPE could not reach its AI service. Please try again.")
     if(local!=null) history+=AiTurn("assistant",local)
    }
   );thinking=false}
@@ -154,7 +155,30 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
  val profile=remember{UserProfileStore(context)}
  var aiProfile by remember{mutableStateOf(profile.enabled())}
  Text("AI & privacy",fontWeight=FontWeight.Bold,fontSize=20.sp)
- Text("CARPE does not store a raw Gemini API key. Secure cloud AI will use Firebase AI Logic with App Check.",color=Color.DarkGray,fontSize=13.sp)
+ Text("Cloud AI uses a CARPE service URL. Your messages are sent to that service and its AI provider when you tap Send. Never enter an AI key here.",color=Color.DarkGray,fontSize=13.sp)
+ var endpointInput by remember{mutableStateOf(SecureAiGateway.configuredEndpoint(context))}
+ var serviceStatus by remember{mutableStateOf("")}
+ var testing by remember{mutableStateOf(false)}
+ val scope=rememberCoroutineScope()
+ OutlinedTextField(value=endpointInput,onValueChange={endpointInput=it},modifier=Modifier.fillMaxWidth(),label={Text("CARPE AI service URL")},placeholder={Text("https://…/v1/ask")},singleLine=true)
+ Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
+  Button(onClick={
+   runCatching{SecureAiGateway.setEndpoint(context,endpointInput)}.fold(
+    onSuccess={serviceStatus="Service URL saved. Tap Test AI to check the provider."},
+    onFailure={serviceStatus=it.message ?: "Invalid service URL"})
+  }){Text("Save URL")}
+  OutlinedButton(onClick={
+   if(SecureAiGateway.configuredEndpoint(context).isBlank())serviceStatus="Save a service URL first."
+   else {testing=true;serviceStatus="Contacting CARPE AI…";scope.launch{
+    SecureAiGateway(context).ask("Reply with one short sentence confirming CARPE AI is responding.","",emptyList()).fold(
+     onSuccess={serviceStatus="AI responding: $it"},
+     onFailure={serviceStatus="AI test failed: ${it.message ?: "Unknown error"}"})
+    testing=false
+   }}
+  },enabled=!testing){Text(if(testing)"Testing…" else "Test AI")}
+ }
+ if(serviceStatus.isNotBlank())Text(serviceStatus,color=Green)
+ if(SecureAiGateway.configuredEndpoint(context).isNotBlank())TextButton(onClick={SecureAiGateway.clearEndpoint(context);endpointInput="";serviceStatus="Custom URL cleared."}){Text("Clear custom URL")}
  Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Column(Modifier.weight(1f)){Text("Build my AI profile");Text("Learn from what I tell CARPE. Stored locally and sent to Google only with my requests.",color=Color.DarkGray,fontSize=12.sp)};Switch(aiProfile,{aiProfile=it;profile.setEnabled(it)})}
  if(aiProfile){var profileText by remember{mutableStateOf(profile.summary())};Text("What CARPE remembers",fontWeight=FontWeight.Bold);Text(profileText,fontSize=13.sp);OutlinedButton(onClick={profile.clear();profileText=profile.summary()}){Text("Clear AI profile")}}
  HorizontalDivider()

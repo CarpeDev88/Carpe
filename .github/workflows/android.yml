@@ -3,6 +3,8 @@ name: Build Android APK
 on:
   push:
     branches: [ main ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -19,10 +21,24 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test AI gateway
+        run: cd backend && npm ci && npm test
       - name: Build debug APK
         env:
           CARPE_AI_ENDPOINT: ${{ vars.CARPE_AI_ENDPOINT }}
-        run: gradle assembleDebug -PCARPE_AI_ENDPOINT="$CARPE_AI_ENDPOINT"
+        run: |
+          if [ -z "$CARPE_AI_ENDPOINT" ]; then
+            echo "::warning::CARPE_AI_ENDPOINT is unset. The APK needs a service URL entered in Me before cloud AI can work."
+            echo "### Cloud AI not configured for this APK" >> "$GITHUB_STEP_SUMMARY"
+            echo "Enter an HTTPS service URL in Me, or set the CARPE_AI_ENDPOINT repository variable and rebuild." >> "$GITHUB_STEP_SUMMARY"
+          elif [[ ! "$CARPE_AI_ENDPOINT" =~ ^https://[^/]+/v1/ask$ ]]; then
+            echo "::error::CARPE_AI_ENDPOINT must be an HTTPS URL ending in /v1/ask"
+            exit 1
+          fi
+          gradle assembleDebug -PCARPE_AI_ENDPOINT="$CARPE_AI_ENDPOINT"
       - uses: actions/upload-artifact@v4
         with:
           name: carpe-debug-apk
