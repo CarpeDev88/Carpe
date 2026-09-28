@@ -313,7 +313,6 @@ private class ChatSession {
     Text(rate.label+": "+(earlier?.let{"$it%"} ?: "no data")+" → "+(latest?.let{"$it%"} ?: "no data"),fontSize=14.sp)
    }
    Text("Percentages are shares of readable screens in two short samples. Differences can reflect what happened to be on screen; they do not show why an app ranked content or represent its full feed.",fontSize=12.sp,color=Muted,lineHeight=17.sp)
-   TextButton(onClick={auditStore.clearReports();auditRefresh++}){Text("Clear local audit summaries")}
   }}
  }
  var permissionRefresh by remember{mutableIntStateOf(0)}
