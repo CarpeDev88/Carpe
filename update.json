@@ -1,6 +1,6 @@
 {
-  "versionCode": 19,
-  "versionName": "0.19.0",
+  "versionCode": 20,
+  "versionName": "0.20.0",
   "downloadUrl": "https://github.com/CarpeDev88/Carpe/actions/workflows/android.yml",
-  "message": "CARPE v0.19: refreshed orange-and-white design and optional, user-started on-device feed audit. Screen samples are summarized locally and discarded; no internal ranking claims."
+  "message": "CARPE v0.20.0: audit refresh runs only during startup and active sessions; stopped samples cannot alter another audit report."
 }
