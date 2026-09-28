@@ -1,7 +1,6 @@
 package app.carpe.core
 
 import android.content.Context
-import org.json.JSONArray
 import org.json.JSONObject
 
 /** A deliberately small local summary. OCR text and captured images are never retained here. */
@@ -11,13 +10,11 @@ data class ScreenAuditReport(
     val recommendationLabelScreens: Int,
     val continuePromptScreens: Int,
     val similarScreens: Int,
-    val recurringWords: List<String>,
     val completedAt: Long
 )
 
 class ScreenAuditAnalyzer {
     private val wordsByScreen = mutableListOf<Set<String>>()
-    private val recurringWordCounts = mutableMapOf<String, Int>()
     private var sampled = 0
     private var adLabels = 0
     private var recommendationLabels = 0
@@ -36,10 +33,7 @@ class ScreenAuditAnalyzer {
             .filter { it.length >= 5 && it !in STOP_WORDS }
             .toSet()
         if (wordsByScreen.any { previous -> similarity(words, previous) >= 0.72 }) similarScreens++
-        if (words.isNotEmpty()) {
-            wordsByScreen.add(words)
-            words.forEach { recurringWordCounts[it] = (recurringWordCounts[it] ?: 0) + 1 }
-        }
+        if (words.isNotEmpty()) wordsByScreen.add(words)
     }
 
     fun report(completedAt: Long = System.currentTimeMillis()) = ScreenAuditReport(
@@ -48,11 +42,6 @@ class ScreenAuditAnalyzer {
         recommendationLabelScreens = recommendationLabels,
         continuePromptScreens = continuePrompts,
         similarScreens = similarScreens,
-        recurringWords = recurringWordCounts.entries
-            .filter { it.value >= 2 }
-            .sortedByDescending { it.value }
-            .take(5)
-            .map { it.key },
         completedAt = completedAt
     )
 
@@ -88,7 +77,6 @@ class ScreenAuditStore(context: Context) {
             put("recommendations", report.recommendationLabelScreens)
             put("continue", report.continuePromptScreens)
             put("similar", report.similarScreens)
-            put("words", JSONArray(report.recurringWords))
             put("completedAt", report.completedAt)
         }
         prefs.edit().putString(KEY_REPORT, value.toString()).apply()
@@ -96,14 +84,12 @@ class ScreenAuditStore(context: Context) {
 
     fun report(): ScreenAuditReport? = runCatching {
         val value = JSONObject(prefs.getString(KEY_REPORT, null) ?: return null)
-        val words = value.optJSONArray("words") ?: JSONArray()
         ScreenAuditReport(
             sampledScreens = value.optInt("sampled"),
             adLabelScreens = value.optInt("ads"),
             recommendationLabelScreens = value.optInt("recommendations"),
             continuePromptScreens = value.optInt("continue"),
             similarScreens = value.optInt("similar"),
-            recurringWords = (0 until words.length()).mapNotNull { index -> words.optString(index).takeIf { it.isNotBlank() } },
             completedAt = value.optLong("completedAt")
         )
     }.getOrNull()
