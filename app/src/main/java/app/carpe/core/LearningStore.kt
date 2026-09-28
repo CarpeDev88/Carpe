@@ -21,6 +21,17 @@ class IntentRouter {
  }
 }
 
+data class IntentFeedback(val helpful: Int, val total: Int)
+
+object FeedbackMath {
+    /** Four balanced prior votes keep one early rating from dominating a recommendation. */
+    fun smoothedHelpfulRate(helpful: Int, total: Int): Float {
+        val safeTotal = total.coerceAtLeast(0)
+        val safeHelpful = helpful.coerceIn(0, safeTotal)
+        return (safeHelpful + 2f) / (safeTotal + 4f)
+    }
+}
+
 class LearningStore(context: Context) {
  private val prefs = context.getSharedPreferences("carpe_learning", Context.MODE_PRIVATE)
  fun rating(pkg:String):Int? = if(prefs.contains("rating_"+pkg)) prefs.getInt("rating_"+pkg,3) else null
@@ -39,8 +50,25 @@ class LearningStore(context: Context) {
    .apply()
  }
  fun helpfulRate(intent:CarpeIntent):Float? {
-  val total=prefs.getInt("total_"+intent.name,0)
-  if(total==0)return null
-  return prefs.getInt("helpful_"+intent.name,0).toFloat()/total
+  val counts=feedback(intent)
+  if(counts.total==0)return null
+  return counts.helpful.toFloat()/counts.total
+ }
+ fun feedback(intent:CarpeIntent):IntentFeedback {
+  val total=prefs.getInt("total_"+intent.name,0).coerceAtLeast(0)
+  val helpful=prefs.getInt("helpful_"+intent.name,0).coerceIn(0,total)
+  return IntentFeedback(helpful,total)
+ }
+ fun feedbackSummary():Map<CarpeIntent,IntentFeedback> =
+  CarpeIntent.values().associateWith{feedback(it)}
+ fun recommendationScore(intent:CarpeIntent):Float? {
+  val counts=feedback(intent)
+  if(counts.total==0)return null
+  return FeedbackMath.smoothedHelpfulRate(counts.helpful,counts.total)
+ }
+ fun clearRecommendationFeedback() {
+  val editor=prefs.edit()
+  prefs.all.keys.filter{it.startsWith("helpful_")||it.startsWith("total_")}.forEach{editor.remove(it)}
+  editor.apply()
  }
 }
