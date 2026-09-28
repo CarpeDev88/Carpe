@@ -61,11 +61,13 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
    CarpeIntent.REFLECT->"You noticed the loop. Pick one small departure: put the phone down for 10 minutes, walk outside, make food, or start one task you care about."
    CarpeIntent.UNKNOWN->null
   }
-  if(local!=null){response=local;history+=AiTurn("user",q);history+=AiTurn("assistant",local);input="";return}
   thinking=true;response="";val prior=history.toList();history+=AiTurn("user",q);input=""
-  scope.launch{gateway.ask(q,profile.summary(),prior).fold(
+  scope.launch{gateway.ask(q,if(profile.enabled())profile.summary() else "",prior).fold(
    onSuccess={answer->response=answer;history+=AiTurn("assistant",answer)},
-   onFailure={e->response=e.message ?: "CARPE could not reach its AI service. Please try again."}
+   onFailure={e->
+    response=local ?: (e.message ?: "CARPE could not reach its AI service. Please try again.")
+    if(local!=null) history+=AiTurn("assistant",local)
+   }
   );thinking=false}
  }
  OutlinedTextField(value=input,onValueChange={input=it},modifier=Modifier.fillMaxWidth().heightIn(min=120.dp),placeholder={Text("Ask CARPE anything…")},maxLines=6)
