@@ -18,6 +18,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -135,9 +136,19 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
  Text("Why this is AI-assisted",fontWeight=FontWeight.Bold);Text("CARPE combines your explicit goals, your feedback, completed actions, and—only if you grant it—local app-usage patterns. The recommendation engine is designed to optimize for your stated life goals rather than engagement.")
 }
 @Composable private fun Focus(p:PaddingValues,a:ActionStore,changed:()->Unit)=Page(p,"Focus","A timer that is successful when you stop looking at CARPE."){
- var running by remember{mutableStateOf(false)};var left by remember{mutableLongStateOf(25*60_000L)};var timer by remember{mutableStateOf<FocusTimer?>(null)}
+ val context=androidx.compose.ui.platform.LocalContext.current
+ val session=remember(context){FocusSessionStore(context)}
+ var running by remember{mutableStateOf(session.isActive())}
+ var left by remember{mutableLongStateOf(if(running)session.remainingMillis() else 25*60_000L)}
+ LaunchedEffect(running){
+  while(running){
+   if(session.finishIfDue(a)){running=false;left=0L;changed();break}
+   left=session.remainingMillis()
+   delay(1000)
+  }
+ }
  Text(String.format("%02d:%02d",left/60000,(left/1000)%60),fontSize=52.sp,fontWeight=FontWeight.Bold)
- Button(onClick={if(!running){running=true;timer=FocusTimer(25,{left=it},{running=false;left=0;a.add("focus","Completed focus session",25);changed()}).also{it.start()}}else{timer?.cancel();running=false}},modifier=Modifier.fillMaxWidth()){Text(if(running)"Stop session" else "Start 25-minute focus")}
+ Button(onClick={if(!running){session.start(25);running=true;left=session.remainingMillis()}else{session.stop();running=false;left=25*60_000L}},modifier=Modifier.fillMaxWidth()){Text(if(running)"Stop session" else "Start 25-minute focus")}
  Text("Put the phone down. CARPE will not send engagement prompts during the session.")
 }
 @Composable private fun Shield(p:PaddingValues,c:Context,u:UsageAccess)=Page(p,"Algorithm shield","See and reduce the signals that attention-harvesting systems use."){
@@ -149,7 +160,8 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
  if(granted){
   val apps=u.last24Hours().take(12)
   val learning=remember{LearningStore(c)}
-  val ratings=apps.associate{it.packageName to learning.rating(it.packageName)}
+  var ratingsRevision by remember{mutableIntStateOf(0)}
+  val ratings=remember(apps,ratingsRevision){apps.associate{it.packageName to learning.rating(it.packageName)}}
   val report=AttentionAnalyzer().analyze(apps,ratings)
   val pressure=remember{NotificationPressure(c)}
   Text("Attention intelligence",fontWeight=FontWeight.Bold)
@@ -159,6 +171,12 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
     Text(sig.packageName.substringAfterLast('.'),fontWeight=FontWeight.Bold)
     Text("Attention-risk signal: "+sig.score+"/100 • "+sig.minutes+" min • "+pressure.today(sig.packageName)+" notifications today")
     if(sig.reasons.isNotEmpty()) Text(sig.reasons.joinToString(" • "),color=Color.DarkGray)
+    Text("Your assessment: "+when(ratings[sig.packageName]){1->"Pulls me away";3->"Mixed";5->"Helps me";else->"Not rated"},fontSize=12.sp)
+    Row(horizontalArrangement=Arrangement.spacedBy(4.dp)){
+     listOf(1 to "Pulls me away",3 to "Mixed",5 to "Helps me").forEach{(rating,label)->
+      TextButton(onClick={learning.rate(sig.packageName,rating);ratingsRevision++}){Text(label,fontSize=11.sp)}
+     }
+    }
    }}
   }
  }
