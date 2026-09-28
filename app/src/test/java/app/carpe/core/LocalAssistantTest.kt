@@ -17,14 +17,15 @@ class LocalAssistantTest {
 
         assertTrue(reply.contains("ingredients", ignoreCase = true))
         assertTrue(reply.contains("time limit", ignoreCase = true))
-        assertTrue(reply.contains("Find recipes"))
+        assertTrue(reply.contains("below"))
+        assertTrue(reply.contains("offline", ignoreCase = true))
     }
 
     @Test
     fun cookingFollowupRespondsToProvidedIngredients() {
         val reply = LocalAssistant.reply(CarpeIntent.COOK, "eggs, spinach, rice")
 
-        assertTrue(reply.contains("those ingredients", ignoreCase = true))
+        assertTrue(reply.contains("starter ideas", ignoreCase = true))
         assertTrue(reply.contains("cooking time", ignoreCase = true))
     }
 

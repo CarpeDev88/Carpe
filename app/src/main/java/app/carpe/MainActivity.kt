@@ -106,6 +106,7 @@ private class ChatSession {
  val profile=remember{UserProfileStore(c)}
  val voice=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()){r->r.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.let{input=it}}
  val router=remember{IntentRouter()}
+ val localRecipes=remember(recipeQuery){RecipeCatalog.search(recipeQuery)}
  fun act(){val q=input.trim();if(q.isBlank()||thinking)return;profile.learn(q);val routed=router.classify(q)
   val isCookContinuation=routed.intent==CarpeIntent.UNKNOWN && awaitingCookFollowup
   val intent=LocalAssistant.resolveIntent(routed.intent,awaitingCookFollowup)
@@ -150,20 +151,29 @@ private class ChatSession {
    s.add(completed.first,completed.second,completed.third);actionLogged=true;changed()
   }){Text(completed.second)}
  }
- if(recipeQuery.isNotBlank()) OutlinedButton(onClick={
-  awaitingCookFollowup=false
-  val url="https://www.google.com/search?q="+Uri.encode("recipes "+recipeQuery)
-  runCatching{c.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(url)))}
- }){Text("Find recipes in browser")}
+ if(recipeQuery.isNotBlank()){
+  Text("Recipe ideas matched on this device",fontWeight=FontWeight.Bold,fontSize=18.sp)
+  if(localRecipes.isEmpty())Text("No close match yet. Try one main ingredient, or broaden the time and diet terms.",color=Muted)
+  localRecipes.forEach{recipe->
+   var expanded by remember(recipe.id){mutableStateOf(false)}
+   Card(colors=CardDefaults.cardColors(containerColor=White)){Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){
+    Text(recipe.title,fontWeight=FontWeight.Bold,fontSize=17.sp,color=Ink)
+    Text(recipe.minutes.toString()+" min • "+(if(recipe.budgetTier==1)"Budget-friendly" else "Everyday"),color=Orange,fontSize=13.sp)
+    Text("Ingredients: "+recipe.ingredients.joinToString(", "),color=Muted,fontSize=13.sp)
+    if(expanded)recipe.steps.forEachIndexed{index,step->Text((index+1).toString()+". "+step,color=Ink,fontSize=13.sp)}
+    OutlinedButton(onClick={expanded=!expanded}){Text(if(expanded)"Hide steps" else "Show steps")}
+   }}
+  }
+  Text("Time is approximate. Check ingredient labels for allergies or dietary needs; CARPE does not verify brands or cross-contact.",color=Muted,fontSize=12.sp)
+ }
  Text("Suggestions",fontSize=18.sp,fontWeight=FontWeight.Bold)
  ActionCard("Cook something","Search recipes using ingredients, a meal idea, or a dietary need."){showRecipeSearch=!showRecipeSearch}
  if(showRecipeSearch){
   OutlinedTextField(value=recipeInput,onValueChange={recipeInput=it},modifier=Modifier.fillMaxWidth(),label={Text("Ingredients or meal")},placeholder={Text("eggs, spinach, 20 minutes")},singleLine=true)
   Button(onClick={
    awaitingCookFollowup=false
-   val query="recipes "+recipeInput.trim().ifBlank{"easy dinner"}
-   runCatching{c.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://www.google.com/search?q="+Uri.encode(query))))}
-  }){Text("Search recipes")}
+   recipeQuery=recipeInput.trim().ifBlank{"quick dinner"}
+  }){Text("Find ideas in CARPE")}
  }
  ActionCard("Move your body","Walk, train, stretch, or get outside."){input="Help me move my body today"}
  ActionCard("Do meaningful work","Start a protected focus block."){openFocus()}
