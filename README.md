@@ -24,9 +24,15 @@ gradle assembleDebug
 
 APK output: `app/build/outputs/apk/debug/app-debug.apk`.
 
+## GitHub AI helpers
+
+After this change is merged, repository collaborators can ask for help on GitHub by commenting `/carpe-help` on an issue or `/carpe-review` on a pull request. The helpers only post advisory comments; they cannot edit code, approve, merge, or deploy. They run only on explicit commands from repository collaborators.
+
+To enable them, add a `GEMINI_API_KEY` Actions secret in **Settings → Secrets and variables → Actions**. Never put the key in an issue or commit. The default model is `gemini-3.6-flash`; a repository variable named `GEMINI_MODEL` can override it. An explicit command sends the issue title, description, command comment, or pull request diff to Google's Gemini API, so don't invoke the bot on confidential or sensitive content. API quotas and pricing depend on Google's current account terms. If no key is configured, the workflow replies with setup instructions.
+
 ## Status
 
-v0.18 Android alpha. Today offers actionable local guidance and recipe search without an AI service. Cooking follow-up context is limited to one unclassified reply so unrelated requests do not get misrouted. Coach uses local goals and optional usage access, Focus keeps its countdown across tab switches and app reopen, and Shield lets the user rate apps as helpful, mixed, or distracting. These features are a prototype; CARPE does not yet block other apps or alter their feeds.
+v0.19 Android alpha. The orange-and-white interface keeps the Today composer, user-chosen goals, and offline actions central. Coach uses local goals and optional usage access; Focus supports deliberate breaks; Mirror lets users rate apps and inspect their own visible feed cues. Optional screen audits require a fresh Android screen-sharing choice each time, show an ongoing notification with Stop, and end after at most two minutes. On-device text recognition keeps only aggregate counts; captured frames and OCR text are not saved or sent to AI. A sample can identify visible labels such as Sponsored or Suggested for you, but cannot reveal or prove an app's internal ranking logic. CARPE does not block apps or alter their feeds.
 
 AI connection without a CARPE server: open **Me → AI & privacy**, use **Get a Gemini API key in AI Studio**, create a key, paste it into CARPE, save it, and tap **Test AI**. The direct connection uses Google AI Studio's free-tier Gemini API and does not need Cloud Run or linked Cloud billing. Free-tier quotas apply, and Google may use free-tier prompts to improve its products. Only the current request and optional saved profile preferences are sent to AI; earlier chat turns stay on-device. Don't send sensitive details. CARPE encrypts the key with Android Keystore, but client-side keys can still be extracted; this setup is intended for private testing. For a shared/public release, use a trusted backend proxy that keeps provider keys server-side.
 
@@ -46,6 +52,8 @@ Product constraints:
 - No engagement optimization designed to keep people inside Carpe.
 - AI recommendations optimize for goals the user chooses, not commercial outcomes.
 - Optional data access requires informed opt-in and Carpe remains useful when access is declined.
+- Screen inspection is user-started per session, time-limited, visible while active, processed locally, and summarized without retaining captured images or OCR text.
+- CARPE reports observable cues and uncertainty; it does not claim access to a platform's internal recommendation algorithm.
 - AI assessments should distinguish beneficial technology use from detrimental or unwanted use rather than treating all screen time as harmful.
 - Users can question, correct, or reject Carpe's interpretation of their behavior.
 - Success is measured by technology serving the user's life, including when the best outcome is spending less time in Carpe itself.
