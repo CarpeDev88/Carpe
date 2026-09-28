@@ -36,6 +36,7 @@ private class ChatSession {
  val thinking=mutableStateOf(false)
  val lastIntent=mutableStateOf(CarpeIntent.UNKNOWN)
  val recipeQuery=mutableStateOf("")
+ val actionLogged=mutableStateOf(false)
  val history=mutableStateListOf<AiTurn>()
 }
 
@@ -66,9 +67,10 @@ private class ChatSession {
  }
 }
 @Composable private fun Page(p:PaddingValues,title:String,sub:String,body:@Composable ColumnScope.()->Unit){Column(Modifier.fillMaxSize().padding(p).verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){Text("CARPE",color=Green,fontWeight=FontWeight.Bold,letterSpacing=3.sp);Text(title,fontSize=32.sp,fontWeight=FontWeight.Bold);Text(sub,color=Color.DarkGray);body();Spacer(Modifier.height(30.dp))}}
-@Composable private fun Today(p:PaddingValues,c:Context,s:ActionStore,changed:()->Unit,openSettings:()->Unit,openFocus:()->Unit,chat:ChatSession,scope:CoroutineScope)=Page(p,"What do you want to do right now?","Tell CARPE what you need. Type naturally or use your voice."){
+@Composable private fun Today(p:PaddingValues,c:Context,s:ActionStore,changed:()->Unit,openSettings:()->Unit,openFocus:()->Unit,chat:ChatSession,scope:CoroutineScope)=Page(p,"What matters now?","Type what you need or use your voice."){
  var input by chat.input; var response by chat.response; var thinking by chat.thinking
  var lastIntent by chat.lastIntent; var recipeQuery by chat.recipeQuery
+ var actionLogged by chat.actionLogged
  var showRecipeSearch by remember{mutableStateOf(false)}
  var recipeInput by remember{mutableStateOf("")}
  val gateway=remember{SecureAiGateway(c)}; val history=chat.history
@@ -87,7 +89,7 @@ private class ChatSession {
    CarpeIntent.REFLECT->"You noticed the loop. Pick one small departure: put the phone down for 10 minutes, walk outside, make food, or start one task you care about."
    CarpeIntent.UNKNOWN->"I can help you choose a next step for cooking, movement, focused work, or deliberate spending. Tell me which matters right now. For open-ended questions, connect cloud AI in Me → AI & privacy."
   }
-  response="";val prior=history.toList();history+=AiTurn("user",q);input=""
+  response="";actionLogged=false;val prior=history.toList();history+=AiTurn("user",q);input=""
   while(history.size>20)history.removeAt(0)
   if(SecureAiGateway.configuredEndpoint(c).isBlank()){
    response="Cloud AI is not connected yet. Here's what CARPE can do locally:\n\n$local"
@@ -99,21 +101,36 @@ private class ChatSession {
    onSuccess={answer->response=answer;history+=AiTurn("assistant",answer)},
    onFailure={e->
     response="Cloud AI is unavailable (${e.message ?: "connection failed"}). Here's a local suggestion:\n\n$local"
+    if(input.isBlank())input=q
     history+=AiTurn("assistant",local)
    }
   );thinking=false}
  }
  if(SecureAiGateway.configuredEndpoint(c).isBlank()) ElevatedCard {
-  Column(Modifier.fillMaxWidth().padding(16.dp)){
-   Text("Cloud AI is not connected",fontWeight=FontWeight.Bold)
-   Text("CARPE can offer local guidance. Open-ended AI replies need the CARPE service to be deployed and connected.")
-   TextButton(onClick=openSettings){Text("Open AI settings")}
+  Row(Modifier.fillMaxWidth().padding(10.dp),horizontalArrangement=Arrangement.SpaceBetween){
+   Column(Modifier.weight(1f)){
+    Text("Cloud AI offline",fontWeight=FontWeight.Bold)
+    Text("Local guidance is ready.",fontSize=12.sp)
+   }
+   TextButton(onClick=openSettings){Text("Connect")}
   }
  }
  else Text("When you tap Send, your message, recent chat, and any AI profile you enabled go to the CARPE service and its AI provider.",color=Color.DarkGray,fontSize=12.sp)
- OutlinedTextField(value=input,onValueChange={input=it},modifier=Modifier.fillMaxWidth().heightIn(min=120.dp),placeholder={Text("Ask CARPE anything…")},maxLines=6)
+ OutlinedTextField(value=input,onValueChange={input=it},modifier=Modifier.fillMaxWidth().heightIn(min=88.dp),placeholder={Text("Ask CARPE anything…")},maxLines=6)
  Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)){OutlinedButton(onClick={try{voice.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM).putExtra(RecognizerIntent.EXTRA_PROMPT,"Talk to CARPE"))}catch(_:Exception){response="Voice recognition isn't available on this device."}},modifier=Modifier.weight(1f)){Text("🎤  Speak")};Button(onClick={act()},enabled=!thinking,modifier=Modifier.weight(1f)){Text(if(thinking)"Thinking…" else "Send")}}
  if(response.isNotBlank()) ElevatedCard{Text(response,Modifier.fillMaxWidth().padding(16.dp))}
+ if(response.startsWith("Cloud AI is unavailable")) TextButton(onClick=openSettings){Text("Check AI connection")}
+ if(response.isNotBlank()&&!actionLogged){
+  val completed=when(lastIntent){
+   CarpeIntent.COOK->Triple("cook","I cooked a meal",30)
+   CarpeIntent.MOVE->Triple("move","I moved for 10 minutes",10)
+   CarpeIntent.SPEND->Triple("save","I paused a purchase",5)
+   else->null
+  }
+  if(completed!=null)OutlinedButton(onClick={
+   s.add(completed.first,completed.second,completed.third);actionLogged=true;changed()
+  }){Text(completed.second)}
+ }
  if(recipeQuery.isNotBlank()) OutlinedButton(onClick={
   val url="https://www.google.com/search?q="+Uri.encode("recipes "+recipeQuery)
   runCatching{c.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(url)))}
@@ -138,9 +155,7 @@ private class ChatSession {
  val goals=names.filter{prefs.getBoolean("goal_"+it.lowercase().replace(" ","_").replace("&","and"),it=="More time offline"||it=="Focused work")}
  val top=if(u.isGranted())u.last24Hours().take(12) else emptyList()
  val coachContext=androidx.compose.ui.platform.LocalContext.current
- val historyStore=remember(coachContext){BehaviorHistory(coachContext)}
- if(u.isGranted()) historyStore.capture(top,a.todayMinutes())
- val patterns=PatternEngine().findings(historyStore.recent(),top)
+ val patterns=PatternEngine().findings(top)
  val learning=remember(coachContext){LearningStore(coachContext)}
  val suggestions=AiCoach().suggest(CoachContext(a.todayMinutes(),goals,top,a.recent()),learning)
  Text("What CARPE is noticing",fontWeight=FontWeight.Bold,fontSize=20.sp)
@@ -258,5 +273,20 @@ private class ChatSession {
  goals.forEach{g->val k="goal_"+g.lowercase().replace(" ","_").replace("&","and");var on by remember{mutableStateOf(prefs.getBoolean(k,g=="More time offline"||g=="Focused work"))};Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text(g,Modifier.weight(1f));Switch(on,{on=it;prefs.edit().putBoolean(k,it).apply()})}}
  HorizontalDivider();Text(a.todayMinutes().toString()+" minutes invested in deliberate actions",fontSize=22.sp,fontWeight=FontWeight.Bold)
  a.recent(8).forEach{Text("• "+it.title+" — "+it.minutes+" min")}
+ var confirmErase by remember{mutableStateOf(false)}
+ OutlinedButton(onClick={confirmErase=true}){Text("Erase CARPE's local data")}
+ if(confirmErase) AlertDialog(
+  onDismissRequest={confirmErase=false},
+  title={Text("Erase local data?")},
+  text={Text("This removes your goals, ratings, action history, AI profile, service URL, and focus session from this device. Android permissions remain managed in system settings.")},
+  confirmButton={TextButton(onClick={
+   listOf("carpe","carpe_actions","carpe_ai_profile","carpe_ai_service","behavior_history","notification_pressure","carpe_learning","carpe_focus").forEach{name->
+    context.getSharedPreferences(name,Context.MODE_PRIVATE).edit().clear().commit()
+   }
+   confirmErase=false
+   (context as? android.app.Activity)?.recreate()
+  }){Text("Erase data")}},
+  dismissButton={TextButton(onClick={confirmErase=false}){Text("Cancel")}}
+ )
  Text("CARPE v"+BuildConfig.VERSION_NAME+" alpha",color=Green,fontWeight=FontWeight.Bold)
 }
