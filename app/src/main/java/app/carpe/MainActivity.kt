@@ -516,7 +516,7 @@ private class ChatSession {
  val settingsLauncher=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()){permissionRefresh++}
  // Recheck after returning from Android settings without requiring a tab switch.
  val granted=remember(permissionRefresh){u.isGranted()}
- ActionCard("Usage intelligence",if(granted)"Enabled. CARPE can analyze foreground app time locally." else "Optional. Tap to grant Android Usage Access."){if(!granted)settingsLauncher.launch(u.settingsIntent())}
+ ActionCard("Usage intelligence",if(granted)"Enabled. CARPE can analyze foreground app time locally. Tap to review or revoke access." else "Optional. Tap to grant Android Usage Access."){settingsLauncher.launch(u.settingsIntent())}
  ActionCard("Notification intelligence","Optional. Android grants broad notification access. CARPE reads only the posting app name and stores daily counts; it does not read or save notification text. Enable it only if this insight is useful."){settingsLauncher.launch(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"))}
  ActionCard("Notification controls","Open Android notification settings to silence apps that pull you back."){c.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE,c.packageName))}
  ActionCard("Privacy dashboard","Open Android's privacy settings. CARPE cannot revoke other apps' permissions or stop their data collection for you."){try{c.startActivity(Intent(Settings.ACTION_PRIVACY_SETTINGS))}catch(_:Exception){}}
