@@ -17,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -47,17 +48,26 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
 @Composable private fun Page(p:PaddingValues,title:String,sub:String,body:@Composable ColumnScope.()->Unit){Column(Modifier.fillMaxSize().padding(p).verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){Text("CARPE",color=Green,fontWeight=FontWeight.Bold,letterSpacing=3.sp);Text(title,fontSize=32.sp,fontWeight=FontWeight.Bold);Text(sub,color=Color.DarkGray);body();Spacer(Modifier.height(30.dp))}}
 @Composable private fun Today(p:PaddingValues,c:Context,s:ActionStore,changed:()->Unit)=Page(p,"What do you want to do right now?","Tell CARPE what you need. Type naturally or use your voice."){
  var input by remember{mutableStateOf("")}; var response by remember{mutableStateOf("")}; var thinking by remember{mutableStateOf(false)}
+ val scope=rememberCoroutineScope(); val gateway=remember{SecureAiGateway()}; val history=remember{mutableStateListOf<AiTurn>()}
  val profile=remember{UserProfileStore(c)}
  val voice=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()){r->r.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.let{input=it}}
  val router=remember{IntentRouter()}
- fun act(){val q=input.trim();if(q.isBlank()||thinking)return;profile.learn(q);val routed=router.classify(q);response=when(routed.intent){
-  CarpeIntent.COOK->"Let's cook without leaving CARPE. Tell me what ingredients you have, how much time you want to spend, and any budget or dietary limits. Example: chicken, rice and broccoli; 25 minutes; under $12."
-  CarpeIntent.FOCUS->"Let's turn that intention into action. Open Focus below for a protected 25-minute block, then put the phone down."
-  CarpeIntent.MOVE->"Choose the smallest useful movement you can start now: a 10-minute walk, stretching, or a short workout. The goal is doing it, not staying in CARPE."
-  CarpeIntent.SPEND->"Before buying, name what problem the purchase solves, whether you already own an alternative, and whether waiting 24 hours would change the decision."
-  CarpeIntent.REFLECT->"You noticed the loop—that is useful information. Pick one small departure: put the phone down for 10 minutes, walk outside, make food, or start one task you care about."
-  CarpeIntent.UNKNOWN->SecureAiGateway().ask(q,profile.summary())
- }}
+ fun act(){val q=input.trim();if(q.isBlank()||thinking)return;profile.learn(q);val routed=router.classify(q)
+  val local=when(routed.intent){
+   CarpeIntent.COOK->"Let's cook without leaving CARPE. Tell me what ingredients you have, how much time you want to spend, and any budget or dietary limits."
+   CarpeIntent.FOCUS->"Let's turn that intention into action. Open Focus below for a protected 25-minute block, then put the phone down."
+   CarpeIntent.MOVE->"Choose the smallest useful movement you can start now: a 10-minute walk, stretching, or a short workout."
+   CarpeIntent.SPEND->"Before buying, name what problem the purchase solves, whether you already own an alternative, and whether waiting 24 hours would change the decision."
+   CarpeIntent.REFLECT->"You noticed the loop. Pick one small departure: put the phone down for 10 minutes, walk outside, make food, or start one task you care about."
+   CarpeIntent.UNKNOWN->null
+  }
+  if(local!=null){response=local;history+=AiTurn("user",q);history+=AiTurn("assistant",local);input="";return}
+  thinking=true;response="";val prior=history.toList();history+=AiTurn("user",q);input=""
+  scope.launch{gateway.ask(q,profile.summary(),prior).fold(
+   onSuccess={answer->response=answer;history+=AiTurn("assistant",answer)},
+   onFailure={e->response=e.message ?: "CARPE could not reach its AI service. Please try again."}
+  );thinking=false}
+ }
  OutlinedTextField(value=input,onValueChange={input=it},modifier=Modifier.fillMaxWidth().heightIn(min=120.dp),placeholder={Text("Ask CARPE anything…")},maxLines=6)
  Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)){OutlinedButton(onClick={try{voice.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM).putExtra(RecognizerIntent.EXTRA_PROMPT,"Talk to CARPE"))}catch(_:Exception){response="Voice recognition isn't available on this device."}},modifier=Modifier.weight(1f)){Text("🎤  Speak")};Button(onClick={act()},enabled=!thinking,modifier=Modifier.weight(1f)){Text(if(thinking)"Thinking…" else "Send")}}
  if(response.isNotBlank()) ElevatedCard{Text(response,Modifier.fillMaxWidth().padding(16.dp))}
