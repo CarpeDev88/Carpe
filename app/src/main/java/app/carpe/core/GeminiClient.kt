@@ -61,12 +61,12 @@ class SecureAiGateway(private val context:Context):CarpeAiProvider {
    "CARPE AI needs a service URL. Open Me → AI & privacy to connect it."
   ))
   runCatching {
+   val context=CloudDataPolicy.forUserRequest(message,profile)
    val body=JSONObject().apply {
-    put("message",CloudDataPolicy.sanitize(CloudAiContext(userRequest=message)).userRequest)
-    put("profile",profile.take(2500))
-    put("history",org.json.JSONArray().apply {
-     history.takeLast(10).forEach { put(JSONObject().put("role",it.role).put("text",it.text.take(1500))) }
-    })
+    put("message",context.userRequest)
+    put("profile",context.userChosenPreferences.joinToString("\n").take(2500))
+    // Keep conversation history on-device; do not send past turns to cloud AI.
+    put("history",org.json.JSONArray())
     put("purpose","Help the user advance their explicitly chosen goals while protecting autonomy, attention, privacy, money and time. Prefer useful real-world action over engagement. Ask when intent is uncertain.")
    }.toString()
 
