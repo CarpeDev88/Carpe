@@ -35,6 +35,7 @@ private class ChatSession {
  val response=mutableStateOf("")
  val thinking=mutableStateOf(false)
  val lastIntent=mutableStateOf(CarpeIntent.UNKNOWN)
+ val awaitingCookFollowup=mutableStateOf(false)
  val recipeQuery=mutableStateOf("")
  val actionLogged=mutableStateOf(false)
  val history=mutableStateListOf<AiTurn>()
@@ -70,6 +71,7 @@ private class ChatSession {
 @Composable private fun Today(p:PaddingValues,c:Context,s:ActionStore,changed:()->Unit,openSettings:()->Unit,openFocus:()->Unit,chat:ChatSession,scope:CoroutineScope)=Page(p,"What matters now?","Type what you need or use your voice."){
  var input by chat.input; var response by chat.response; var thinking by chat.thinking
  var lastIntent by chat.lastIntent; var recipeQuery by chat.recipeQuery
+ var awaitingCookFollowup by chat.awaitingCookFollowup
  var actionLogged by chat.actionLogged
  var showRecipeSearch by remember{mutableStateOf(false)}
  var recipeInput by remember{mutableStateOf("")}
@@ -78,17 +80,14 @@ private class ChatSession {
  val voice=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()){r->r.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.let{input=it}}
  val router=remember{IntentRouter()}
  fun act(){val q=input.trim();if(q.isBlank()||thinking)return;profile.learn(q);val routed=router.classify(q)
-  val intent=if(routed.intent==CarpeIntent.UNKNOWN && lastIntent==CarpeIntent.COOK) CarpeIntent.COOK else routed.intent
+  val isCookContinuation=routed.intent==CarpeIntent.UNKNOWN && awaitingCookFollowup
+  val intent=LocalAssistant.resolveIntent(routed.intent,awaitingCookFollowup)
   lastIntent=intent
+  // Keep one cooking follow-up in context. An unrelated later message should
+  // return to normal routing instead of being silently forced into cooking.
+  awaitingCookFollowup=intent==CarpeIntent.COOK && !isCookContinuation
   recipeQuery=if(intent==CarpeIntent.COOK) q else ""
-  val local=when(intent){
-   CarpeIntent.COOK->"Tell me what ingredients you have, or tap Find recipes to search for ideas using your request. You can also include your time, budget, and dietary needs."
-   CarpeIntent.FOCUS->"Let's turn that intention into action. Open Focus below for a protected 25-minute block, then put the phone down."
-   CarpeIntent.MOVE->"Choose the smallest useful movement you can start now: a 10-minute walk, stretching, or a short workout."
-   CarpeIntent.SPEND->"Before buying, name what problem the purchase solves, whether you already own an alternative, and whether waiting 24 hours would change the decision."
-   CarpeIntent.REFLECT->"You noticed the loop. Pick one small departure: put the phone down for 10 minutes, walk outside, make food, or start one task you care about."
-   CarpeIntent.UNKNOWN->"I can help you choose a next step for cooking, movement, focused work, or deliberate spending. Tell me which matters right now. For open-ended questions, connect cloud AI in Me → AI & privacy."
-  }
+  val local=LocalAssistant.reply(intent,q)
   response="";actionLogged=false;val prior=history.toList();history+=AiTurn("user",q);input=""
   while(history.size>20)history.removeAt(0)
   if(SecureAiGateway.configuredEndpoint(c).isBlank()){
@@ -132,6 +131,7 @@ private class ChatSession {
   }){Text(completed.second)}
  }
  if(recipeQuery.isNotBlank()) OutlinedButton(onClick={
+  awaitingCookFollowup=false
   val url="https://www.google.com/search?q="+Uri.encode("recipes "+recipeQuery)
   runCatching{c.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(url)))}
  }){Text("Find recipes in browser")}
@@ -140,6 +140,7 @@ private class ChatSession {
  if(showRecipeSearch){
   OutlinedTextField(value=recipeInput,onValueChange={recipeInput=it},modifier=Modifier.fillMaxWidth(),label={Text("Ingredients or meal")},placeholder={Text("eggs, spinach, 20 minutes")},singleLine=true)
   Button(onClick={
+   awaitingCookFollowup=false
    val query="recipes "+recipeInput.trim().ifBlank{"easy dinner"}
    runCatching{c.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://www.google.com/search?q="+Uri.encode(query))))}
   }){Text("Search recipes")}

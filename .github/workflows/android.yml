@@ -26,6 +26,8 @@ jobs:
           node-version: '22'
       - name: Test AI gateway
         run: cd backend && npm ci && npm test
+      - name: Test local guidance
+        run: gradle testDebugUnitTest
       - name: Build debug APK
         env:
           CARPE_AI_ENDPOINT: ${{ vars.CARPE_AI_ENDPOINT }}
