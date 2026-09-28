@@ -29,6 +29,8 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.text.KeyboardOptions
 import kotlinx.coroutines.launch
@@ -64,7 +66,7 @@ class MainActivity:ComponentActivity(){
    val update=pendingUpdate
    pendingUpdate=null
    if(update!=null) downloadUpdate(update)
-  }else if(!updateCheckStarted){
+  }else if(!updateCheckStarted && getSharedPreferences("carpe",Context.MODE_PRIVATE).getBoolean("welcome_complete",false)){
    updateCheckStarted=true
    lifecycleScope.launch {
     val update=CarpeUpdates.checkForUpdate(BuildConfig.VERSION_NAME)
@@ -131,8 +133,22 @@ private class ChatSession {
  val prefs=remember{context.getSharedPreferences("carpe",Context.MODE_PRIVATE)}
  val actions=remember{ActionStore(context)}; val usage=remember{UsageAccess(context)}
  val chat=remember{ChatSession()}; val chatScope=rememberCoroutineScope()
+ var showWelcome by rememberSaveable{mutableStateOf(!prefs.getBoolean("welcome_complete",false))}
  var tab by remember{mutableIntStateOf(0)}; var refresh by remember{mutableIntStateOf(0)}
  MaterialTheme(colorScheme=lightColorScheme(primary=Orange,onPrimary=White,secondary=BrightOrange,background=WarmWhite,onBackground=Ink,surface=White,onSurface=Ink,surfaceVariant=Peach,onSurfaceVariant=Ink,outline=Line)){
+  if(showWelcome){
+   WelcomeFlow(onFinish={destination->
+    prefs.edit().putBoolean("welcome_complete",true).apply()
+    when(destination){
+     "focus"->tab=2
+     "mirror"->tab=3
+     "goals"->tab=4
+     "offline"->{chat.input.value="Help me choose one offline activity that fits my time and energy.";tab=0}
+     else->tab=0
+    }
+    showWelcome=false
+   })
+  }else{
   Scaffold(containerColor=WarmWhite,bottomBar={NavigationBar(containerColor=White,tonalElevation=2.dp){
    val labels=listOf("Today","Coach","Focus","Mirror","Me")
    val icons=listOf(Icons.Filled.Today,Icons.Filled.AutoAwesome,Icons.Filled.CenterFocusStrong,Icons.Filled.Visibility,Icons.Filled.Person)
@@ -155,10 +171,11 @@ private class ChatSession {
     },onPlanGoal={title->chat.input.value=GoalStepPlanner.prompt(title);chat.response.value="";tab=0},onGoalLogged={refresh++})
     2->Focus(p,actions){refresh++}
     3->Mirror(p,context,usage)
-    else->Me(p,prefs,actions,refresh){refresh++}
+    else->Me(p,prefs,actions,refresh,onWelcome={showWelcome=true}){refresh++}
    }
   }
  }
+}
 }
 @Composable private fun Page(p:PaddingValues,title:String,sub:String,body:@Composable ColumnScope.()->Unit){Column(Modifier.fillMaxSize().padding(p).verticalScroll(rememberScrollState()).padding(horizontal=20.dp, vertical=18.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){Text("CARPE",color=Orange,fontWeight=FontWeight.Bold,letterSpacing=3.sp,fontSize=13.sp);Text(title,fontSize=30.sp,fontWeight=FontWeight.Bold,color=Ink);Text(sub,color=Muted,fontSize=15.sp,lineHeight=21.sp);body();Spacer(Modifier.height(30.dp))}}
 @Composable private fun Today(p:PaddingValues,c:Context,s:ActionStore,changed:()->Unit,openSettings:()->Unit,openFocus:()->Unit,chat:ChatSession,scope:CoroutineScope)=Page(p,"What matters now?","Type what you need or use your voice."){
@@ -500,7 +517,7 @@ private class ChatSession {
 private fun cueSummary(report:ScreenAuditReport,count:Int):String =
  "${count.coerceIn(0,report.sampledScreens)} of ${report.sampledScreens} sampled screens" +
   (report.percentOfSamples(count)?.let{" ($it%)"} ?: "")
-@Composable private fun Me(p:PaddingValues,prefs:android.content.SharedPreferences,a:ActionStore,r:Int,changed:()->Unit)=Page(p,"Your life, not a feed","Set what CARPE should optimize for and review what you actually did."){
+@Composable private fun Me(p:PaddingValues,prefs:android.content.SharedPreferences,a:ActionStore,r:Int,onWelcome:()->Unit,changed:()->Unit)=Page(p,"Your life, not a feed","Set what CARPE should optimize for and review what you actually did."){
  val context=androidx.compose.ui.platform.LocalContext.current
  val profile=remember{UserProfileStore(context)}
  var aiProfile by remember{mutableStateOf(profile.enabled())}
@@ -515,6 +532,7 @@ private fun cueSummary(report:ScreenAuditReport,count:Int):String =
  var testing by remember{mutableStateOf(false)}
  var showAiDetails by remember{mutableStateOf(false)}
  val scope=rememberCoroutineScope()
+ OutlinedButton(onClick=onWelcome){Text("Revisit welcome & check-in")}
  Text("AI & privacy",fontWeight=FontWeight.Bold,fontSize=20.sp)
  Card(colors=CardDefaults.cardColors(containerColor=Peach)){Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){
   Text("AI is optional. Local guidance works without a connection.",fontWeight=FontWeight.SemiBold)
@@ -627,4 +645,60 @@ private fun cueSummary(report:ScreenAuditReport,count:Int):String =
   dismissButton={TextButton(onClick={confirmErase=false}){Text("Cancel")}}
  )
  Text("CARPE v"+BuildConfig.VERSION_NAME+" alpha",color=Orange,fontWeight=FontWeight.Bold)
+}
+
+
+/** The check-in is transient: never persisted, profiled, or sent to an AI provider. */
+@Composable private fun WelcomeFlow(onFinish:(String)->Unit){
+ var step by rememberSaveable{mutableIntStateOf(0)}
+ var answer by remember{mutableStateOf("")}
+ BackHandler(enabled=step>0){step--;answer=""}
+ Scaffold(containerColor=WarmWhite){padding->
+  Page(padding,
+   when(step){0->"Welcome to CARPE";1->"A moment for you";else->"Start with what matters"},
+   when(step){0->"Technology should serve your life.";1->"There is no right or wrong answer.";else->"One small starting point. You can change direction anytime."}){
+   if(step==0){
+    Text("CARPE is a counter-algorithm app built around your well-being. Our vision is to help you understand how technology shapes your attention, make deliberate choices, and create more room for the life you want.",fontSize=18.sp,lineHeight=26.sp)
+    Card(colors=CardDefaults.cardColors(containerColor=Peach)){
+     Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
+      Text("Your goals come first.",fontWeight=FontWeight.Bold,fontSize=20.sp)
+      Text("Keep what helps. Change what gets in the way. You decide what a healthy balance looks like.")
+      Text("No ads or data sales. Optional permissions. Useful without connecting AI.")
+     }
+    }
+    Button(onClick={step=1},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)){Text("Continue")}
+   }else if(step==1){
+    Text("Do you currently feel your relationship with technology is healthy?",fontSize=24.sp,lineHeight=32.sp,fontWeight=FontWeight.Bold)
+    Text("Think about whether technology supports your time, attention, relationships, and the things that matter to you.",color=Muted,lineHeight=22.sp)
+    Text("Your answer is not saved or sent anywhere. It only shapes the message below.",color=Muted,fontSize=13.sp)
+    listOf("Yes, it feels healthy","Sometimes — it is a mix","No, I would like it to change","I’m not sure yet").forEach{choice->
+     OutlinedButton(onClick={answer=choice},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)){
+      Text(if(answer==choice)"Selected: $choice" else choice)
+     }
+    }
+    if(answer.isNotEmpty()){
+     Card(colors=CardDefaults.cardColors(containerColor=Peach)){
+      Text(when(answer){
+       "Yes, it feels healthy"->"Let’s support what is working. You can use CARPE to protect that balance and pursue the goals you choose."
+       "Sometimes — it is a mix"->"You can keep the parts that help and explore one part you would like to change, at your own pace."
+       "No, I would like it to change"->"You can start small. CARPE offers focus breaks, local guidance, and goals you choose. You stay in control."
+       else->"You do not need to decide now. You can explore CARPE and notice what feels helpful to you."
+      },Modifier.padding(18.dp),lineHeight=23.sp)
+     }
+     Button(onClick={step=2},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)){Text("Continue")}
+    }
+    TextButton(onClick={answer="";step=2},modifier=Modifier.fillMaxWidth()){Text("Skip this question")}
+    TextButton(onClick={step=0;answer=""}){Text("Back")}
+   }else{
+    Text("What would you like CARPE to help you with first?",fontSize=24.sp,lineHeight=32.sp,fontWeight=FontWeight.Bold)
+    Text("Choose one, or explore on your own. We will ask for more detail only when it helps with what you are doing.",color=Muted,lineHeight=22.sp)
+    ActionCard("Protect my focus","Open a focus timer for something I choose."){onFinish("focus")}
+    ActionCard("Understand my technology use","Explore Mirror. Any device access is optional and explained before I choose it."){onFinish("mirror")}
+    ActionCard("Make room for life offline","Draft a request for an activity that fits my time and energy. I choose whether to send it."){onFinish("offline")}
+    ActionCard("Work toward my own goal","Choose or create a personal goal in Me."){onFinish("goals")}
+    TextButton(onClick={onFinish("today")},modifier=Modifier.fillMaxWidth()){Text("Just explore CARPE")}
+    TextButton(onClick={step=1;answer=""}){Text("Back")}
+   }
+  }
+ }
 }
