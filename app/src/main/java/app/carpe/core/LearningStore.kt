@@ -28,6 +28,8 @@ class LearningStore(context: Context) {
  fun intentional(pkg:String):Boolean? = if(prefs.contains("intentional_"+pkg)) prefs.getBoolean("intentional_"+pkg,false) else null
  fun setIntentional(pkg:String,value:Boolean){ prefs.edit().putBoolean("intentional_"+pkg,value).apply() }
 
+ fun clearAssessment(pkg:String){ prefs.edit().remove("rating_"+pkg).remove("intentional_"+pkg).apply() }
+
  fun recordHelpful(intent:CarpeIntent, helpful:Boolean){
   val key="helpful_"+intent.name
   val totalKey="total_"+intent.name

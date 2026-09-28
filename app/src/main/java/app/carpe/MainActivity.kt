@@ -321,13 +321,22 @@ private class ChatSession {
   report.signals.take(8).forEach{sig->
    Card{Column(Modifier.fillMaxWidth().padding(14.dp)){
     Text(sig.packageName.substringAfterLast('.'),fontWeight=FontWeight.Bold)
-    Text("Attention-risk signal: "+sig.score+"/100 • "+sig.minutes+" min • "+pressure.today(sig.packageName)+" notifications today")
+    Text("Observed cue: "+sig.score+"/100 • "+sig.minutes+" min • "+pressure.today(sig.packageName)+" notifications today")
     if(sig.reasons.isNotEmpty()) Text(sig.reasons.joinToString(" • "),color=Color.DarkGray)
-    Text("Your assessment: "+when(ratings[sig.packageName]){1->"Pulls me away";3->"Mixed";5->"Helps me";else->"Not rated"},fontSize=12.sp)
+    Text("This cue combines approximate foreground time with your rating. It is not a measure of harm or addiction.",fontSize=12.sp,color=Muted)
+    Text("Your assessment: "+when(ratings[sig.packageName]){in 1..2->"Pulls me away";3->"Mixed";in 4..5->"Helps me";else->"Not rated"},fontSize=12.sp)
+    val intention=learning.intentional(sig.packageName)
+    Text("Did this time match your intention? "+when(intention){true->"Yes";false->"No";else->"Not rated"},fontSize=12.sp)
+    Row(horizontalArrangement=Arrangement.spacedBy(4.dp)){
+     listOf(true to "Matched",false to "Did not match").forEach{(matched,label)->
+      TextButton(onClick={learning.setIntentional(sig.packageName,matched);ratingsRevision++}){Text(label,fontSize=11.sp)}
+     }
+    }
     Row(horizontalArrangement=Arrangement.spacedBy(4.dp)){
      listOf(1 to "Pulls me away",3 to "Mixed",5 to "Helps me").forEach{(rating,label)->
       TextButton(onClick={learning.rate(sig.packageName,rating);ratingsRevision++}){Text(label,fontSize=11.sp)}
      }
+     if(intention!=null||ratings[sig.packageName]!=null)TextButton(onClick={learning.clearAssessment(sig.packageName);ratingsRevision++}){Text("Clear feedback",fontSize=11.sp)}
     }
    }}
   }
