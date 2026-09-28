@@ -1,6 +1,11 @@
 package app.carpe.core
 
 import android.content.Context
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 
 class UserProfileStore(private val context: Context) {
  private val p=context.getSharedPreferences("carpe_ai_profile",Context.MODE_PRIVATE)
@@ -21,18 +26,42 @@ class UserProfileStore(private val context: Context) {
  fun clear()=p.edit().remove("summary").apply()
 }
 
+data class AiTurn(val role:String,val text:String)
+
+interface CarpeAiProvider {
+ suspend fun ask(message:String, profile:String, history:List<AiTurn>):Result<String>
+}
+
 /**
- * CARPE deliberately does not embed or accept a raw Gemini Developer API key.
- * Cloud AI will be re-enabled through Firebase AI Logic + App Check so credentials
- * are not stored in the APK or SharedPreferences.
+ * Cloud provider endpoint is intentionally supplied at build time and contains no
+ * model credential. The endpoint is expected to be a CARPE-owned HTTPS proxy
+ * (Cloud Run / Firebase Function) which keeps provider credentials server-side.
  */
-class SecureAiGateway {
- fun ask(message:String, profile:String):String {
-  // Even before networking is enabled, construct cloud-bound context only through
-  // the allowlist. The profile is intentionally NOT forwarded wholesale.
-  val approved=CloudDataPolicy.sanitize(CloudAiContext(userRequest=message))
-  return "Secure cloud AI is being upgraded. CARPE kept this request local. " +
-   "Your request was classified safely ("+approved.userRequest.length+" characters). " +
-   "You can still use Focus, Shield, cooking guidance, goals, and local recommendations."
+class SecureAiGateway(private val endpoint:String = app.carpe.BuildConfig.CARPE_AI_ENDPOINT):CarpeAiProvider {
+ override suspend fun ask(message:String, profile:String, history:List<AiTurn>):Result<String> = withContext(Dispatchers.IO) {
+  if(endpoint.isBlank()) return@withContext Result.failure(IllegalStateException(
+   "CARPE AI is not configured in this build yet. The app is working, but its secure AI service URL has not been installed."
+  ))
+  runCatching {
+   val body=JSONObject().apply {
+    put("message",CloudDataPolicy.sanitize(CloudAiContext(userRequest=message)).userRequest)
+    put("profile",profile.take(2500))
+    put("history",org.json.JSONArray().apply {
+     history.takeLast(10).forEach { put(JSONObject().put("role",it.role).put("text",it.text.take(1500))) }
+    })
+    put("purpose","Help the user advance their explicitly chosen goals while protecting autonomy, attention, privacy, money and time. Prefer useful real-world action over engagement. Ask when intent is uncertain.")
+   }.toString()
+
+   val c=(URL(endpoint).openConnection() as HttpURLConnection).apply {
+    requestMethod="POST"; connectTimeout=12_000; readTimeout=30_000
+    doOutput=true; setRequestProperty("Content-Type","application/json")
+   }
+   c.outputStream.use{it.write(body.toByteArray(Charsets.UTF_8))}
+   val code=c.responseCode
+   val raw=(if(code in 200..299)c.inputStream else c.errorStream)?.bufferedReader()?.use{it.readText()}.orEmpty()
+   if(code !in 200..299) error("AI service returned HTTP $code")
+   val json=JSONObject(raw)
+   json.optString("response").ifBlank{json.optString("text")}.ifBlank{error("AI service returned no response")}
+  }
  }
 }
