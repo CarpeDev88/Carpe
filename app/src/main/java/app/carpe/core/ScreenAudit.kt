@@ -2,6 +2,7 @@ package app.carpe.core
 
 import android.content.Context
 import org.json.JSONObject
+import kotlin.math.roundToInt
 
 /** A deliberately small local summary. OCR text and captured images are never retained here. */
 data class ScreenAuditReport(
@@ -10,8 +11,15 @@ data class ScreenAuditReport(
     val recommendationLabelScreens: Int,
     val continuePromptScreens: Int,
     val similarScreens: Int,
-    val completedAt: Long
-)
+    val completedAt: Long,
+    val sourceLabel: String = ""
+) {
+    fun percentOfSamples(cueScreens: Int): Int? {
+        if (sampledScreens <= 0) return null
+        val boundedCount = cueScreens.coerceIn(0, sampledScreens)
+        return ((boundedCount * 100.0) / sampledScreens).roundToInt()
+    }
+}
 
 class ScreenAuditAnalyzer {
     private val wordsByScreen = mutableListOf<Set<String>>()
@@ -36,13 +44,17 @@ class ScreenAuditAnalyzer {
         if (words.isNotEmpty()) wordsByScreen.add(words)
     }
 
-    fun report(completedAt: Long = System.currentTimeMillis()) = ScreenAuditReport(
+    fun report(
+        completedAt: Long = System.currentTimeMillis(),
+        sourceLabel: String = ""
+    ) = ScreenAuditReport(
         sampledScreens = sampled,
         adLabelScreens = adLabels,
         recommendationLabelScreens = recommendationLabels,
         continuePromptScreens = continuePrompts,
         similarScreens = similarScreens,
-        completedAt = completedAt
+        completedAt = completedAt,
+        sourceLabel = sourceLabel.trim().take(60)
     )
 
     private fun similarity(a: Set<String>, b: Set<String>): Double {
@@ -69,6 +81,8 @@ class ScreenAuditStore(context: Context) {
     fun isActive(): Boolean = prefs.getBoolean(KEY_ACTIVE, false)
     fun setError(error: String?) = prefs.edit().putString(KEY_ERROR, error.orEmpty()).apply()
     fun error(): String = prefs.getString(KEY_ERROR, "").orEmpty()
+    fun setSourceLabel(value: String) = prefs.edit().putString(KEY_SOURCE_LABEL, value.trim().take(60)).apply()
+    fun sourceLabel(): String = prefs.getString(KEY_SOURCE_LABEL, "").orEmpty()
 
     fun save(report: ScreenAuditReport) {
         val value = JSONObject().apply {
@@ -78,6 +92,7 @@ class ScreenAuditStore(context: Context) {
             put("continue", report.continuePromptScreens)
             put("similar", report.similarScreens)
             put("completedAt", report.completedAt)
+            put("sourceLabel", report.sourceLabel)
         }
         prefs.edit().putString(KEY_REPORT, value.toString()).apply()
     }
@@ -90,7 +105,8 @@ class ScreenAuditStore(context: Context) {
             recommendationLabelScreens = value.optInt("recommendations"),
             continuePromptScreens = value.optInt("continue"),
             similarScreens = value.optInt("similar"),
-            completedAt = value.optLong("completedAt")
+            completedAt = value.optLong("completedAt"),
+            sourceLabel = value.optString("sourceLabel")
         )
     }.getOrNull()
 
@@ -102,5 +118,6 @@ class ScreenAuditStore(context: Context) {
         const val KEY_ACTIVE = "active"
         const val KEY_ERROR = "error"
         const val KEY_REPORT = "report"
+        const val KEY_SOURCE_LABEL = "source_label"
     }
 }
