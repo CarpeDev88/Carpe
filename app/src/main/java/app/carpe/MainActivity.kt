@@ -76,18 +76,22 @@ private class ChatSession {
   }}){p->
    when(tab){
     0->Today(p,context,actions,{refresh++},{tab=4},{tab=2},chat,chatScope)
-    1->Coach(p,prefs,usage,actions,refresh){type->
+    1->Coach(p,prefs,usage,actions,refresh,onAction={type->
      when(type){
       "focus"->tab=2
+      "offline"->{chat.input.value="Help me choose one offline activity that fits my time and energy. Offer a few options without assuming screen use is bad.";tab=0}
+      "reset"->{chat.input.value="Help me make a short, nonjudgmental pause from technology and choose what I want to do next.";tab=0}
       "cook"->{chat.input.value="Help me cook a meal with what I have";tab=0}
       "move"->{chat.input.value="Help me choose a movement I can start now";tab=0}
       "save"->{chat.input.value="Help me pause before a purchase";tab=0}
+      "content_plan"->{chat.input.value="Help me make a private, nonjudgmental plan to reduce porn use. Do not ask me to share browsing or viewing history. Offer a few offline alternatives and let me decide.";tab=0}
+      "perspectives"->{chat.input.value="Help me examine an issue from multiple political viewpoints. Present strong good-faith arguments and distinguish facts from uncertainty. Do not steer me to a conclusion.";tab=0}
       else->tab=4
      }
-    }
+    },onPlanGoal={title->chat.input.value=GoalStepPlanner.prompt(title);chat.response.value="";tab=0},onGoalLogged={refresh++})
     2->Focus(p,actions){refresh++}
     3->Mirror(p,context,usage)
-    else->Me(p,prefs,actions,refresh)
+    else->Me(p,prefs,actions,refresh){refresh++}
    }
   }
  }
@@ -181,14 +185,18 @@ private class ChatSession {
  Text("CARPE counts completed offline actions, not time spent inside CARPE.",color=Orange,fontWeight=FontWeight.Medium)
 }
 @Composable private fun ActionCard(t:String,d:String,on:()->Unit){ElevatedCard(onClick=on,colors=CardDefaults.elevatedCardColors(containerColor=White)){Column(Modifier.fillMaxWidth().padding(18.dp)){Text(t,fontWeight=FontWeight.Bold,fontSize=18.sp,color=Ink);Text(d,color=Muted,lineHeight=20.sp)}}}
-@Composable private fun Coach(p:PaddingValues,prefs:android.content.SharedPreferences,u:UsageAccess,a:ActionStore,r:Int,onAction:(String)->Unit)=Page(p,"CARPE intelligence","Recommendations use only the context you choose to provide. Device usage stays local in this alpha."){
- val names=listOf("More time offline","Fitness & movement","Home cooking","Focused work","Saving money","Less compulsive content")
+@Composable private fun Coach(p:PaddingValues,prefs:android.content.SharedPreferences,u:UsageAccess,a:ActionStore,r:Int,onAction:(String)->Unit,onPlanGoal:(String)->Unit,onGoalLogged:()->Unit)=Page(p,"CARPE intelligence","Recommendations use only the context you choose to provide. Device usage stays local in this alpha."){
+ val names=listOf("More time offline","Fitness & movement","Home cooking","Focused work","Saving money","Less compulsive content","Reduce porn use","Think across political viewpoints")
  val goals=names.filter{prefs.getBoolean("goal_"+it.lowercase().replace(" ","_").replace("&","and"),it=="More time offline"||it=="Focused work")}
  val top=if(u.isGranted())u.last24Hours().take(12) else emptyList()
  val coachContext=androidx.compose.ui.platform.LocalContext.current
- val patterns=PatternEngine().findings(top)
- val learning=remember(coachContext){LearningStore(coachContext)}
- val suggestions=AiCoach().suggest(CoachContext(a.todayMinutes(),goals,top,a.recent()),learning)
+  val goalStore=remember(coachContext){UserGoalStore(coachContext)}
+  val userGoals=remember(r){goalStore.goals()}
+  val patterns=PatternEngine().findings(top)
+  val learning=remember(coachContext){LearningStore(coachContext)}
+  val ratings=top.associate{it.packageName to learning.rating(it.packageName)}
+  val intentions=top.associate{it.packageName to learning.intentional(it.packageName)}
+  val suggestions=AiCoach().suggest(CoachContext(a.todayMinutes(),goals,top,a.recent(),ratings,intentions),learning)
  Text("What CARPE is noticing",fontWeight=FontWeight.Bold,fontSize=20.sp)
  patterns.forEach{finding->
   ElevatedCard{Column(Modifier.fillMaxWidth().padding(16.dp)){
@@ -200,16 +208,30 @@ private class ChatSession {
  }
  Text("Suggested next moves",fontWeight=FontWeight.Bold,fontSize=20.sp)
  suggestions.forEach{s->Card{Column(Modifier.fillMaxWidth().padding(18.dp)){
-  Text(s.title,fontWeight=FontWeight.Bold);Text(s.reason);Text("Suggested: "+s.minutes+" min",color=Orange)
-  Text("Why: based on goals and local patterns you allowed CARPE to use.",fontSize=12.sp,color=Color.DarkGray)
-  TextButton(onClick={onAction(s.actionType)}){Text(when(s.actionType){"focus"->"Start focus";"cook"->"Plan a meal";"move"->"Choose movement";"save"->"Review a purchase";else->"Set goals"})}
+  Text(s.title,fontWeight=FontWeight.Bold);Text(s.reason);Text("Optional starting point: "+s.minutes+" min",color=Orange)
+  Text("Based on the goal you chose and any local assessment you gave. This suggestion is generated on your device.",fontSize=12.sp,color=Color.DarkGray)
+  TextButton(onClick={onAction(s.actionType)}){Text(when(s.actionType){"focus"->"Start focus";"cook"->"Plan a meal";"move"->"Choose movement";"save"->"Review a purchase";"offline"->"Choose an offline activity";"reset"->"Plan a pause";"content_plan"->"Make a private plan";"perspectives"->"Explore perspectives";else->"Set goals"})}
   var rated by remember(s.title){mutableStateOf(false)}
   if(!rated) Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
-   TextButton(onClick={learning.recordHelpful(when(s.actionType){"cook"->CarpeIntent.COOK;"focus"->CarpeIntent.FOCUS;"move"->CarpeIntent.MOVE;"save"->CarpeIntent.SPEND;else->CarpeIntent.UNKNOWN},true);rated=true}){Text("Helpful")}
-   TextButton(onClick={learning.recordHelpful(when(s.actionType){"cook"->CarpeIntent.COOK;"focus"->CarpeIntent.FOCUS;"move"->CarpeIntent.MOVE;"save"->CarpeIntent.SPEND;else->CarpeIntent.UNKNOWN},false);rated=true}){Text("Not helpful")}
+   TextButton(onClick={learning.recordHelpful(when(s.actionType){"cook"->CarpeIntent.COOK;"focus"->CarpeIntent.FOCUS;"move"->CarpeIntent.MOVE;"save"->CarpeIntent.SPEND;"offline"->CarpeIntent.OFFLINE_ACTIVITY;"content_plan","perspectives","reset"->CarpeIntent.REFLECT;else->CarpeIntent.UNKNOWN},true);rated=true}){Text("Helpful")}
+   TextButton(onClick={learning.recordHelpful(when(s.actionType){"cook"->CarpeIntent.COOK;"focus"->CarpeIntent.FOCUS;"move"->CarpeIntent.MOVE;"save"->CarpeIntent.SPEND;"offline"->CarpeIntent.OFFLINE_ACTIVITY;"content_plan","perspectives","reset"->CarpeIntent.REFLECT;else->CarpeIntent.UNKNOWN},false);rated=true}){Text("Not helpful")}
   } else Text("Thanks. CARPE will use that locally.",fontSize=12.sp,color=Orange)
  }}}
- Text("Why this is AI-assisted",fontWeight=FontWeight.Bold);Text("CARPE combines your explicit goals, your feedback, completed actions, and—only if you grant it—local app-usage patterns. The recommendation engine is designed to optimize for your stated life goals rather than engagement.")
+ if(userGoals.isNotEmpty()){
+  Text("Your goals",fontWeight=FontWeight.Bold,fontSize=20.sp)
+  userGoals.forEach{goal->
+   val count=GoalProgress.countWithinDays(goalStore.checkIns(goal.id),7,System.currentTimeMillis())
+   Card(colors=CardDefaults.cardColors(containerColor=White)){Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(7.dp)){
+    Text(goal.title,fontWeight=FontWeight.SemiBold)
+    Text("$count of ${goal.weeklyTarget} planned steps in the last 7 days. This is your check-in, not a measure of your worth.",color=Muted,fontSize=13.sp)
+    Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
+     OutlinedButton(onClick={onPlanGoal(goal.title)}){Text("Plan a next step")}
+     TextButton(onClick={goalStore.checkIn(goal.id);onGoalLogged()}){Text("Log a step")}
+    }
+   }}
+  }
+ }
+ Text("How these suggestions work",fontWeight=FontWeight.Bold);Text("These are local rules, not AI-generated advice. They use your selected goals, private action history, and feedback. Usage observations are considered only if you grant Usage Access or rate an app. Coach context stays on this device; AI in Today is separate and sends a request only when you choose Send.")
 }
 @Composable private fun Focus(p:PaddingValues,a:ActionStore,changed:()->Unit)=Page(p,"Focus","A timer that is successful when you stop looking at CARPE."){
  val context=androidx.compose.ui.platform.LocalContext.current
@@ -229,11 +251,21 @@ private class ChatSession {
 }
 @Composable private fun Mirror(p:PaddingValues,c:Context,u:UsageAccess)=Page(p,"Algorithm mirror","Inspect visible feed cues, understand what CARPE can observe, and choose what to do next."){
  val auditStore=remember(c){ScreenAuditStore(c)}
+ val aiKeyStore=remember(c){AiStudioKeyStore(c)}
+ val directAi=remember(c){DirectGeminiProvider(aiKeyStore)}
+ val aiGateway=remember(c){SecureAiGateway(c)}
+ val aiScope=rememberCoroutineScope()
+ var aiAnalysis by remember{mutableStateOf("")}
+ var aiAnalyzing by remember{mutableStateOf(false)}
  var auditRefresh by remember{mutableIntStateOf(0)}
  var auditSourceLabel by remember(c){mutableStateOf(auditStore.sourceLabel())}
  var showAuditLabel by remember{mutableStateOf(auditStore.sourceLabel().isNotBlank())}
  val isAuditing=remember(auditRefresh){auditStore.isActive()}
  val auditReport=remember(auditRefresh){auditStore.report()}
+ LaunchedEffect(auditReport?.completedAt){aiAnalysis=""}
+ val auditHistory=remember(auditRefresh){auditStore.history()}
+ val auditComparison=remember(auditHistory){ScreenAuditComparison.between(auditHistory)}
+ var compareSamples by remember(auditRefresh){mutableStateOf(auditStore.historyEnabled())}
  val auditError=remember(auditRefresh){auditStore.error()}
  var auditPending by remember{mutableStateOf(false)}
  LaunchedEffect(isAuditing,auditPending){
@@ -263,6 +295,13 @@ private class ChatSession {
   if(granted)startProjection() else {auditStore.setError("Allow notifications so Android can show the active session and Stop control.");auditRefresh++}
  }
  Text("Visible feed sample",fontWeight=FontWeight.Bold,fontSize=21.sp,color=Ink)
+ Card(colors=CardDefaults.cardColors(containerColor=White)){Row(Modifier.fillMaxWidth().padding(14.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)){
+  Column(Modifier.weight(1f)){
+   Text("Compare recent samples",fontWeight=FontWeight.SemiBold,color=Ink)
+   Text("Optional. Keeps up to 5 aggregate summaries on this device; no images or recognized words. Turning this off stops new saves; clear saved summaries below.",fontSize=12.sp,color=Muted,lineHeight=16.sp)
+  }
+  Switch(checked=compareSamples,onCheckedChange={enabled->compareSamples=enabled;auditStore.setHistoryEnabled(enabled);auditRefresh++})
+ }}
  Card(colors=CardDefaults.cardColors(containerColor=Peach)){Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
   Text("A short, optional check of what appears on your screen",fontWeight=FontWeight.SemiBold)
   Text("Choose one app if available; older Android may share the whole screen. Up to 2 minutes, on-device only. Images and recognized words are discarded, never sent to AI.",color=Muted,fontSize=13.sp,lineHeight=18.sp)
@@ -290,7 +329,44 @@ private class ChatSession {
    Text("Continue or autoplay prompts: ${cueSummary(auditReport,auditReport.continuePromptScreens)}")
    Text("Screens with similar visible text: ${cueSummary(auditReport,auditReport.similarScreens)}")
    Text("These are counts from this short sample, not the full feed or the app’s internal ranking. A visible label is evidence of wording on screen; similarity can also come from repeated interface text. CARPE does not keep the words it reads.",fontSize=12.sp,color=Muted)
-   TextButton(onClick={auditStore.clear();auditRefresh++},enabled=!isAuditing){Text("Clear this report")}
+   TextButton(onClick={auditStore.clearReports();auditRefresh++},enabled=!isAuditing){Text("Clear local audit summaries")}
+  }}
+  Card(colors=CardDefaults.cardColors(containerColor=Peach)){Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
+   Text("Optional AI interpretation",fontWeight=FontWeight.SemiBold)
+   Text("Only the aggregate counts above are sent when you tap. No screenshots, recognized words, or app/feed label are included. The sample cannot reveal an app's internal ranking.",fontSize=12.sp,color=Muted,lineHeight=17.sp)
+   Button(onClick={
+    val connected=aiKeyStore.hasKey()||SecureAiGateway.configuredEndpoint(c).isNotBlank()
+    if(!connected){aiAnalysis="Connect AI in Me → AI & privacy to use this optional explanation."}
+    else{
+     aiAnalyzing=true
+     aiAnalysis=""
+     val prompt=ScreenAuditAiPrompt.build(auditReport)
+     aiScope.launch{
+      val provider=if(aiKeyStore.hasKey())directAi else aiGateway
+      provider.ask(prompt,"",emptyList()).fold(
+       onSuccess={answer->if(auditStore.report()?.completedAt==auditReport.completedAt)aiAnalysis=answer},
+       onFailure={aiAnalysis="CARPE couldn't get an AI interpretation: ${it.message ?: "connection failed"}"}
+      )
+      aiAnalyzing=false
+     }
+    }
+   },enabled=!isAuditing&&!aiAnalyzing){Text(if(aiAnalyzing)"Analyzing…" else "Ask AI to interpret these counts")}
+  }}
+  if(aiAnalysis.isNotBlank())Card(colors=CardDefaults.cardColors(containerColor=White)){Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){
+   Text("AI interpretation",fontWeight=FontWeight.SemiBold)
+   Text(aiAnalysis,color=Ink)
+  }}
+ }
+ if(compareSamples && auditComparison!=null){
+  Text("Latest two samples for this label",fontWeight=FontWeight.Bold,fontSize=19.sp,color=Ink)
+  Card(colors=CardDefaults.cardColors(containerColor=White)){Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){
+   Text(if(auditComparison.latest.sourceLabel.isBlank())"Unlabeled samples" else auditComparison.latest.sourceLabel,fontWeight=FontWeight.SemiBold)
+   auditComparison.cueRates().forEach{rate->
+    val earlier=rate.earlierPercent
+    val latest=rate.latestPercent
+    Text(rate.label+": "+(earlier?.let{"$it%"} ?: "no data")+" → "+(latest?.let{"$it%"} ?: "no data"),fontSize=14.sp)
+   }
+   Text("Percentages are shares of readable screens in two short samples. Differences can reflect what happened to be on screen; they do not show why an app ranked content or represent its full feed.",fontSize=12.sp,color=Muted,lineHeight=17.sp)
   }}
  }
  var permissionRefresh by remember{mutableIntStateOf(0)}
@@ -298,9 +374,9 @@ private class ChatSession {
  // Recheck after returning from Android settings without requiring a tab switch.
  val granted=remember(permissionRefresh){u.isGranted()}
  ActionCard("Usage intelligence",if(granted)"Enabled. CARPE can analyze foreground app time locally." else "Optional. Tap to grant Android Usage Access."){if(!granted)settingsLauncher.launch(u.settingsIntent())}
- ActionCard("Notification intelligence","Grant CARPE notification access to measure which apps repeatedly compete for your attention."){settingsLauncher.launch(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"))}
+ ActionCard("Notification intelligence","Optional. Android grants broad notification access. CARPE reads only the posting app name and stores daily counts; it does not read or save notification text. Enable it only if this insight is useful."){settingsLauncher.launch(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"))}
  ActionCard("Notification controls","Open Android notification settings to silence apps that pull you back."){c.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE,c.packageName))}
- ActionCard("Privacy dashboard","Review Android permissions granted to apps on this device."){try{c.startActivity(Intent(Settings.ACTION_PRIVACY_SETTINGS))}catch(_:Exception){}}
+ ActionCard("Privacy dashboard","Open Android's privacy settings. CARPE cannot revoke other apps' permissions or stop their data collection for you."){try{c.startActivity(Intent(Settings.ACTION_PRIVACY_SETTINGS))}catch(_:Exception){}}
  val pressure=remember(c){NotificationPressure(c)}
  val noisyApps=pressure.topToday()
  if(noisyApps.isNotEmpty()){
@@ -317,15 +393,17 @@ private class ChatSession {
   val learning=remember{LearningStore(c)}
   var ratingsRevision by remember{mutableIntStateOf(0)}
   val ratings=remember(apps,ratingsRevision){apps.associate{it.packageName to learning.rating(it.packageName)}}
-  val report=AttentionAnalyzer().analyze(apps,ratings)
+  val intentions=remember(apps,ratingsRevision){apps.associate{it.packageName to learning.intentional(it.packageName)}}
+  val report=AttentionAnalyzer().analyze(apps,ratings,intentions)
   Text("Attention intelligence",fontWeight=FontWeight.Bold)
   Text(report.totalObservedMinutes.toString()+" foreground minutes observed locally.")
   report.signals.take(8).forEach{sig->
    Card{Column(Modifier.fillMaxWidth().padding(14.dp)){
     Text(sig.packageName.substringAfterLast('.'),fontWeight=FontWeight.Bold)
-    Text("Observed cue: "+sig.score+"/100 • "+sig.minutes+" min • "+pressure.today(sig.packageName)+" notifications today")
+    Text("Observed: "+sig.minutes+" foreground min in the last 24 hours • "+pressure.today(sig.packageName)+" notifications today")
+    Text(sig.assessment.label,fontWeight=FontWeight.SemiBold,color=Orange)
     if(sig.reasons.isNotEmpty()) Text(sig.reasons.joinToString(" • "),color=Color.DarkGray)
-    Text("This cue combines approximate foreground time with your rating. It is not a measure of harm or addiction.",fontSize=12.sp,color=Muted)
+    Text("Time and notification counts are observations, not evidence of harm. CARPE does not diagnose addiction; your assessment guides the interpretation.",fontSize=12.sp,color=Muted)
     Text("Your assessment: "+when(ratings[sig.packageName]){in 1..2->"Pulls me away";3->"Mixed";in 4..5->"Helps me";else->"Not rated"},fontSize=12.sp)
     val intention=learning.intentional(sig.packageName)
     Text("Did this time match your intention? "+when(intention){true->"Yes";false->"No";else->"Not rated"},fontSize=12.sp)
@@ -355,7 +433,7 @@ private class ChatSession {
 private fun cueSummary(report:ScreenAuditReport,count:Int):String =
  "${count.coerceIn(0,report.sampledScreens)} of ${report.sampledScreens} sampled screens" +
   (report.percentOfSamples(count)?.let{" ($it%)"} ?: "")
-@Composable private fun Me(p:PaddingValues,prefs:android.content.SharedPreferences,a:ActionStore,r:Int)=Page(p,"Your life, not a feed","Set what CARPE should optimize for and review what you actually did."){
+@Composable private fun Me(p:PaddingValues,prefs:android.content.SharedPreferences,a:ActionStore,r:Int,changed:()->Unit)=Page(p,"Your life, not a feed","Set what CARPE should optimize for and review what you actually did."){
  val context=androidx.compose.ui.platform.LocalContext.current
  val profile=remember{UserProfileStore(context)}
  var aiProfile by remember{mutableStateOf(profile.enabled())}
@@ -364,6 +442,8 @@ private fun cueSummary(report:ScreenAuditReport,count:Int):String =
  var directConfigured by remember{mutableStateOf(keyStore.hasKey())}
  var apiKeyInput by remember{mutableStateOf("")}
  var endpointInput by remember{mutableStateOf(SecureAiGateway.configuredEndpoint(context))}
+ var serviceTokenInput by remember{mutableStateOf("")}
+ var serviceTokenConfigured by remember{mutableStateOf(SecureAiGateway.hasAccessToken(context,endpointInput))}
  var serviceStatus by remember{mutableStateOf("")}
  var testing by remember{mutableStateOf(false)}
  var showAiDetails by remember{mutableStateOf(false)}
@@ -398,17 +478,68 @@ private fun cueSummary(report:ScreenAuditReport,count:Int):String =
  OutlinedTextField(value=endpointInput,onValueChange={endpointInput=it},modifier=Modifier.fillMaxWidth(),label={Text("Optional CARPE AI service URL")},placeholder={Text("https://…/v1/ask")},singleLine=true)
  Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
   Button(onClick={
-   runCatching{SecureAiGateway.setEndpoint(context,endpointInput)}.fold(
-    onSuccess={serviceStatus="Service URL saved. Tap Test AI to check the provider."},
+  runCatching{SecureAiGateway.setEndpoint(context,endpointInput)}.fold(
+   onSuccess={serviceTokenConfigured=SecureAiGateway.hasAccessToken(context,endpointInput);serviceStatus="Service URL saved. Tap Test AI to check the provider."},
     onFailure={serviceStatus=it.message ?: "Invalid service URL"})
   }){Text("Save URL")}
-  if(SecureAiGateway.configuredEndpoint(context).isNotBlank())TextButton(onClick={SecureAiGateway.clearEndpoint(context);endpointInput="";serviceStatus="Custom URL cleared."}){Text("Clear URL")}
+ if(SecureAiGateway.configuredEndpoint(context).isNotBlank())TextButton(onClick={SecureAiGateway.clearEndpoint(context);endpointInput="";serviceTokenConfigured=false;serviceStatus="Custom URL and its saved service token cleared."}){Text("Clear URL")}
+ }
+ Text("Private service access token",fontWeight=FontWeight.SemiBold)
+ Text("Use the token generated for your trusted CARPE backend. It is encrypted on this device and sent only to the service URL above.",color=Muted,fontSize=12.sp)
+ OutlinedTextField(value=serviceTokenInput,onValueChange={serviceTokenInput=it},modifier=Modifier.fillMaxWidth(),label={Text(if(serviceTokenConfigured)"Replace service token" else "Paste service token")},singleLine=true,visualTransformation=PasswordVisualTransformation(),keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Password))
+ Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
+  Button(onClick={runCatching{SecureAiGateway.saveAccessToken(context,endpointInput,serviceTokenInput)}.fold(onSuccess={serviceTokenConfigured=true;serviceTokenInput="";serviceStatus="Service access token saved on this device for this URL."},onFailure={serviceStatus=it.message ?: "Couldn't save service token."})},enabled=serviceTokenInput.isNotBlank()){Text("Save token")}
+  if(serviceTokenConfigured)TextButton(onClick={SecureAiGateway.clearAccessToken(context);serviceTokenConfigured=false;serviceTokenInput="";serviceStatus="Service access token cleared."}){Text("Clear token")}
  }
  Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Column(Modifier.weight(1f)){Text("Build my AI profile");Text("Learn from what I tell CARPE. Stored locally and sent to Google only with my requests.",color=Color.DarkGray,fontSize=12.sp)};Switch(aiProfile,{aiProfile=it;profile.setEnabled(it)})}
  if(aiProfile){var profileText by remember{mutableStateOf(profile.summary())};Text("What CARPE remembers",fontWeight=FontWeight.Bold);Text(profileText,fontSize=13.sp);OutlinedButton(onClick={profile.clear();profileText=profile.summary()}){Text("Clear AI profile")}}
  HorizontalDivider()
- val goals=listOf("More time offline","Fitness & movement","Home cooking","Focused work","Saving money","Less compulsive content")
+ val goals=listOf("More time offline","Fitness & movement","Home cooking","Focused work","Saving money","Less compulsive content","Reduce porn use","Think across political viewpoints")
  goals.forEach{g->val k="goal_"+g.lowercase().replace(" ","_").replace("&","and");var on by remember{mutableStateOf(prefs.getBoolean(k,g=="More time offline"||g=="Focused work"))};Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text(g,Modifier.weight(1f));Switch(on,{on=it;prefs.edit().putBoolean(k,it).apply()})}}
+ Text("Sensitive goals are optional. CARPE does not monitor page content or infer what you view; these choices only shape suggestions you request.",color=Muted,fontSize=12.sp,lineHeight=17.sp)
+ HorizontalDivider()
+ Text("Your own goals",fontWeight=FontWeight.Bold,fontSize=20.sp)
+ Text("Choose a goal that matters to you. Check-ins stay on this device; CARPE uses no streaks, reminders, or leaderboard.",color=Muted,fontSize=13.sp,lineHeight=18.sp)
+ val userGoalStore=remember(context){UserGoalStore(context)}
+ var userGoals by remember(r){mutableStateOf(userGoalStore.goals())}
+ var goalTitle by remember{mutableStateOf("")}
+ var goalTarget by remember{mutableStateOf("3")}
+ OutlinedTextField(value=goalTitle,onValueChange={goalTitle=it.take(100)},modifier=Modifier.fillMaxWidth(),label={Text("A goal in your own words")},placeholder={Text("e.g. Walk after dinner")},singleLine=true)
+ Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp),verticalAlignment=Alignment.CenterVertically){
+  OutlinedTextField(value=goalTarget,onValueChange={goalTarget=it.filter(Char::isDigit).take(1)},modifier=Modifier.width(110.dp),label={Text("Times / week")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),singleLine=true)
+  Button(onClick={
+   val added=userGoalStore.addGoal(goalTitle,goalTarget.toIntOrNull()?:3)
+   if(added!=null){goalTitle="";userGoals=userGoalStore.goals();changed()}
+  },enabled=goalTitle.isNotBlank()){Text("Add goal")}
+ }
+ userGoals.forEach{goal->
+  val count=GoalProgress.countWithinDays(userGoalStore.checkIns(goal.id),7,System.currentTimeMillis())
+  Card(colors=CardDefaults.cardColors(containerColor=White)){Column(Modifier.fillMaxWidth().padding(14.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){
+   Text(goal.title,fontWeight=FontWeight.SemiBold,fontSize=16.sp,color=Ink)
+   Text("$count of ${goal.weeklyTarget} planned check-ins in the last 7 days",color=Muted,fontSize=13.sp)
+   Row(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically){
+    Button(onClick={userGoalStore.checkIn(goal.id);changed()}){Text("Log a step")}
+    TextButton(onClick={userGoalStore.removeGoal(goal.id);userGoals=userGoalStore.goals();changed()}){Text("Remove")}
+   }
+  }}
+ }
+ HorizontalDivider()
+ Text("How CARPE learns",fontWeight=FontWeight.Bold,fontSize=20.sp)
+ Text("Only feedback you tap on a suggestion is used. It stays on this device, and a few ratings have limited influence.",color=Muted,fontSize=13.sp,lineHeight=18.sp)
+ val learning=remember(context){LearningStore(context)}
+ var feedbackRevision by remember{mutableIntStateOf(0)}
+ val feedbackSummary=remember(feedbackRevision){learning.feedbackSummary()}
+ val trackedIntents=listOf(CarpeIntent.COOK to "Cooking",CarpeIntent.FOCUS to "Focus",CarpeIntent.MOVE to "Movement",CarpeIntent.SPEND to "Spending",CarpeIntent.OFFLINE_ACTIVITY to "Offline activity",CarpeIntent.REFLECT to "Reflection")
+ var hasRecommendationFeedback=false
+ trackedIntents.forEach{(intent,label)->
+  val counts=feedbackSummary[intent] ?: IntentFeedback(0,0)
+  if(counts.total>0){
+   hasRecommendationFeedback=true
+   Text("$label: ${counts.helpful} helpful of ${counts.total} ratings",color=Ink,fontSize=14.sp)
+  }
+ }
+ if(!hasRecommendationFeedback)Text("No recommendation feedback saved yet.",color=Muted,fontSize=13.sp)
+ if(hasRecommendationFeedback)OutlinedButton(onClick={learning.clearRecommendationFeedback();feedbackRevision++}){Text("Clear recommendation learning")}
  HorizontalDivider();Text(a.todayMinutes().toString()+" minutes invested in deliberate actions",fontSize=22.sp,fontWeight=FontWeight.Bold)
  a.recent(8).forEach{Text("• "+it.title+" — "+it.minutes+" min")}
  var confirmErase by remember{mutableStateOf(false)}
@@ -418,10 +549,11 @@ private fun cueSummary(report:ScreenAuditReport,count:Int):String =
   title={Text("Erase local data?")},
   text={Text("This removes your goals, ratings, action history, AI profile, service URL, and focus session from this device. Android permissions remain managed in system settings.")},
   confirmButton={TextButton(onClick={
-   listOf("carpe","carpe_actions","carpe_ai_profile","carpe_ai_service","behavior_history","notification_pressure","carpe_learning","carpe_focus","carpe_screen_audit").forEach{name->
+   listOf("carpe","carpe_actions","carpe_ai_profile","carpe_ai_service","carpe_ai_service_access","behavior_history","notification_pressure","carpe_learning","carpe_focus","carpe_screen_audit","carpe_goals").forEach{name->
     context.getSharedPreferences(name,Context.MODE_PRIVATE).edit().clear().commit()
    }
    keyStore.clear()
+   SecureAiGateway.clearAccessToken(context)
    confirmErase=false
    (context as? android.app.Activity)?.recreate()
   }){Text("Erase data")}},

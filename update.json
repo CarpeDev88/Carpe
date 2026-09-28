@@ -1,6 +1,6 @@
 {
-  "versionCode": 22,
-  "versionName": "0.22.0",
+  "versionCode": 27,
+  "versionName": "0.27.0",
   "downloadUrl": "https://github.com/CarpeDev88/Carpe/actions/workflows/android.yml",
-  "message": "CARPE v0.22.0: the Algorithm Mirror separates observed app time from harm and lets you record or clear local intention feedback."
+  "message": "CARPE v0.27.0 adds a user-triggered AI explanation of aggregate Mirror cues."
 }
