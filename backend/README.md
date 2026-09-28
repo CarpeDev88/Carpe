@@ -4,7 +4,7 @@ Small server-side gateway between the CARPE Android app and Gemini. Provider cre
 
 ## Contract
 
-- GET /health
+- GET /health (HTTP 503 if the provider key is missing)
 - POST /v1/ask with { message, profile, history, purpose }
 - response: { response }
 
@@ -15,7 +15,7 @@ Small server-side gateway between the CARPE Android app and Gemini. Provider cre
 
 ## Cloud Run
 
-Before deploying, link an active billing account to project `phrasal-truck-368514` in [Google Cloud Billing](https://console.cloud.google.com/billing/linkedaccount?project=phrasal-truck-368514). From the repository root in Cloud Shell, run `bash deploy-carpe.sh`; it checks project access and billing before requesting the Gemini key, enables the APIs, deploys the service, and checks a real AI response. An error naming project `670897038764` refers to the same project's numeric identifier; it does not mean the script used a different project ID.
+Before deploying, link an active billing account to project `phrasal-truck-368514` in [Google Cloud Billing](https://console.cloud.google.com/billing/linkedaccount?project=phrasal-truck-368514). From the repository root in Cloud Shell, run `bash deploy-carpe.sh`; it checks project access and billing, enables the APIs, deploys the service, and checks a real AI response. It prompts for a Gemini key only if `carpe-gemini-api-key` has no enabled version. An error naming project `670897038764` refers to the same project's numeric identifier; it does not mean the script used a different project ID.
 
 For a manual deployment from this directory:
 

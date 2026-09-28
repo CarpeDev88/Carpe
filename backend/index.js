@@ -23,7 +23,7 @@ function turns(history=[]){return Array.isArray(history)?history.slice(-10).flat
  return [{role:t?.role==="assistant"?"model":"user",parts:[{text}]}];
 }):[]}
 
-app.get("/health",(req,res)=>res.json({ok:true,service:"carpe-intelligence",model:GEMINI_MODEL,providerConfigured:Boolean(GEMINI_API_KEY)}));
+app.get("/health",(req,res)=>res.status(GEMINI_API_KEY?200:503).json({ok:Boolean(GEMINI_API_KEY),service:"carpe-intelligence",model:GEMINI_MODEL,providerConfigured:Boolean(GEMINI_API_KEY)}));
 
 app.post("/v1/ask",async(req,res)=>{
  try{
@@ -53,4 +53,5 @@ app.post("/v1/ask",async(req,res)=>{
 });
 
 app.use((err,req,res,next)=>{console.error("Request error",err?.name||"Error");res.status(400).json({error:"Invalid request"});});
-app.listen(PORT,"0.0.0.0",()=>console.log(`CARPE intelligence listening on ${PORT}`));
+export default app;
+if(process.env.CARPE_NO_LISTEN!=="1") app.listen(PORT,"0.0.0.0",()=>console.log(`CARPE intelligence listening on ${PORT}`));

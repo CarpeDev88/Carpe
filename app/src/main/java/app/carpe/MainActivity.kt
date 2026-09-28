@@ -65,7 +65,8 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
   scope.launch{gateway.ask(q,if(profile.enabled())profile.summary() else "",prior).fold(
    onSuccess={answer->response=answer;history+=AiTurn("assistant",answer)},
    onFailure={e->
-    response=local ?: (e.message ?: "CARPE could not reach its AI service. Please try again.")
+    response=if(local!=null) "Cloud AI is unavailable (${e.message ?: "connection failed"}). Here's a local suggestion:\n\n$local"
+     else (e.message ?: "CARPE could not reach its AI service. Please try again.")
     if(local!=null) history+=AiTurn("assistant",local)
    }
   );thinking=false}

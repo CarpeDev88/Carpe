@@ -29,15 +29,19 @@ fi
 if ! gcloud secrets describe "$SECRET" --project "$PROJECT_ID" >/dev/null 2>&1; then
   gcloud secrets create "$SECRET" --replication-policy=automatic --project "$PROJECT_ID"
 fi
-printf 'Paste the Gemini API key (input hidden), then press Enter: ' >&2
-IFS= read -r -s GEMINI_KEY
-printf '\n' >&2
-if [[ -z "$GEMINI_KEY" ]]; then
-  echo "No key entered; stopping." >&2
-  exit 1
+if [[ -z "$(gcloud secrets versions list "$SECRET" --project "$PROJECT_ID" --filter='state=ENABLED' --format='value(name)' --limit=1)" ]]; then
+  printf 'Paste the Gemini API key (input hidden), then press Enter: ' >&2
+  IFS= read -r -s GEMINI_KEY
+  printf '\n' >&2
+  if [[ -z "$GEMINI_KEY" ]]; then
+    echo "No key entered; stopping." >&2
+    exit 1
+  fi
+  printf '%s' "$GEMINI_KEY" | gcloud secrets versions add "$SECRET" --data-file=- --project "$PROJECT_ID"
+  unset GEMINI_KEY
+else
+  echo "Using the existing enabled $SECRET secret version."
 fi
-printf '%s' "$GEMINI_KEY" | gcloud secrets versions add "$SECRET" --data-file=- --project "$PROJECT_ID"
-unset GEMINI_KEY
 
 PROJECT_NUMBER="$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')"
 gcloud secrets add-iam-policy-binding "$SECRET" \

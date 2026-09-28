@@ -21,6 +21,11 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test AI gateway
+        run: cd backend && npm ci && npm test
       - name: Build debug APK
         env:
           CARPE_AI_ENDPOINT: ${{ vars.CARPE_AI_ENDPOINT }}
