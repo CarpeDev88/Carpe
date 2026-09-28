@@ -1,6 +1,8 @@
 package app.carpe.core
 
 import android.content.Context
+import java.time.LocalDate
+import java.time.ZoneId
 
 data class CarpeAction(
     val type: String,
@@ -41,7 +43,7 @@ class ActionStore(context: Context) {
     }
 
     fun todayMinutes(): Int {
-        val cutoff = System.currentTimeMillis() - 24L * 60L * 60L * 1000L
+        val cutoff = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
         return recent(100)
             .filter { it.completedAt >= cutoff }
             .sumOf { it.minutes }

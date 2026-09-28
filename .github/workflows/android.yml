@@ -57,6 +57,14 @@ jobs:
             adb shell am start -W -n app.carpe/.MainActivity
             sleep 5
             adb shell pidof app.carpe
+            adb shell screencap -p /sdcard/carpe-today.png
+            adb pull /sdcard/carpe-today.png carpe-today.png
+      - name: Save emulator screenshot
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: carpe-emulator-screenshot
+          path: carpe-today.png
       - uses: actions/upload-artifact@v4
         with:
           name: carpe-debug-apk

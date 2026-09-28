@@ -49,7 +49,15 @@ private class ChatSession {
   Scaffold(bottomBar={NavigationBar{listOf("Today","Coach","Focus","Shield","Me").forEachIndexed{i,n->NavigationBarItem(selected=tab==i,onClick={tab=i},icon={Text(listOf("☀","✦","◉","⬡","●")[i])},label={Text(n)})}}}){p->
    when(tab){
     0->Today(p,context,actions,{refresh++},{tab=4},{tab=2},chat,chatScope)
-    1->Coach(p,prefs,usage,actions,refresh)
+    1->Coach(p,prefs,usage,actions,refresh){type->
+     when(type){
+      "focus"->tab=2
+      "cook"->{chat.input.value="Help me cook a meal with what I have";tab=0}
+      "move"->{chat.input.value="Help me choose a movement I can start now";tab=0}
+      "save"->{chat.input.value="Help me pause before a purchase";tab=0}
+      else->tab=4
+     }
+    }
     2->Focus(p,actions){refresh++}
     3->Shield(p,context,usage)
     else->Me(p,prefs,actions,refresh)
@@ -125,7 +133,7 @@ private class ChatSession {
  Text("CARPE counts completed offline actions, not time spent inside CARPE.",color=Green,fontWeight=FontWeight.Medium)
 }
 @Composable private fun ActionCard(t:String,d:String,on:()->Unit){ElevatedCard(onClick=on){Column(Modifier.fillMaxWidth().padding(18.dp)){Text(t,fontWeight=FontWeight.Bold,fontSize=18.sp);Text(d,color=Color.DarkGray)}}}
-@Composable private fun Coach(p:PaddingValues,prefs:android.content.SharedPreferences,u:UsageAccess,a:ActionStore,r:Int)=Page(p,"CARPE intelligence","Recommendations use only the context you choose to provide. Device usage stays local in this alpha."){
+@Composable private fun Coach(p:PaddingValues,prefs:android.content.SharedPreferences,u:UsageAccess,a:ActionStore,r:Int,onAction:(String)->Unit)=Page(p,"CARPE intelligence","Recommendations use only the context you choose to provide. Device usage stays local in this alpha."){
  val names=listOf("More time offline","Fitness & movement","Home cooking","Focused work","Saving money","Less compulsive content")
  val goals=names.filter{prefs.getBoolean("goal_"+it.lowercase().replace(" ","_").replace("&","and"),it=="More time offline"||it=="Focused work")}
  val top=if(u.isGranted())u.last24Hours().take(12) else emptyList()
@@ -148,6 +156,7 @@ private class ChatSession {
  suggestions.forEach{s->Card{Column(Modifier.fillMaxWidth().padding(18.dp)){
   Text(s.title,fontWeight=FontWeight.Bold);Text(s.reason);Text("Suggested: "+s.minutes+" min",color=Green)
   Text("Why: based on goals and local patterns you allowed CARPE to use.",fontSize=12.sp,color=Color.DarkGray)
+  TextButton(onClick={onAction(s.actionType)}){Text(when(s.actionType){"focus"->"Start focus";"cook"->"Plan a meal";"move"->"Choose movement";"save"->"Review a purchase";else->"Set goals"})}
   var rated by remember(s.title){mutableStateOf(false)}
   if(!rated) Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
    TextButton(onClick={learning.recordHelpful(when(s.actionType){"cook"->CarpeIntent.COOK;"focus"->CarpeIntent.FOCUS;"move"->CarpeIntent.MOVE;"save"->CarpeIntent.SPEND;else->CarpeIntent.UNKNOWN},true);rated=true}){Text("Helpful")}
