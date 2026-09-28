@@ -11,6 +11,9 @@ object LocalAssistant {
         CarpeIntent.MOVE -> "Make it easy to begin: take a 10-minute walk, stretch, or do a short set of bodyweight movements. Pick an option that fits your energy and any physical limits you have. Which sounds right today?"
         CarpeIntent.SPEND -> "Pause before buying. What need would this meet, do you already have something that works, and would waiting until tomorrow change your choice? You can decide after weighing those answers."
         CarpeIntent.REFLECT -> "Try a small reset: put the phone down for 10 minutes, get some water, and choose one thing you meant to do. If you want, tell me what pulled you into the loop and we can make a practical plan."
+        CarpeIntent.GOAL -> "Choose a step small enough to begin today. Decide when you will do it and what 'done for now' means, then close CARPE and try it. You can log a check-in later if that helps you."
+        CarpeIntent.CONTENT_GOAL -> "If reducing porn use is a goal you chose, make a private pause plan: notice the situation you want to change, choose one alternative you would actually welcome, and decide what support or device settings you want to use. CARPE does not inspect browsing or viewing history, and you can change or ignore this plan."
+        CarpeIntent.POLITICAL_BALANCE -> "Choose one issue. Write down the strongest good-faith argument from more than one viewpoint, check which claims are factual and which are values, then reach your own conclusion. You do not need to agree with either side."
         CarpeIntent.UNKNOWN -> "I’m working offline, so I can’t answer every open-ended question yet. I can still help you plan a meal, choose movement, start focused work, pause a purchase, or step away from a loop. What would be most useful right now?"
     }
 

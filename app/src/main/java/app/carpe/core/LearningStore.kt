@@ -2,7 +2,7 @@ package app.carpe.core
 
 import android.content.Context
 
-enum class CarpeIntent { COOK, FOCUS, MOVE, SPEND, REFLECT, UNKNOWN }
+enum class CarpeIntent { COOK, FOCUS, MOVE, SPEND, REFLECT, GOAL, CONTENT_GOAL, POLITICAL_BALANCE, UNKNOWN }
 
 data class IntentResult(val intent: CarpeIntent, val confidence: Float)
 
@@ -11,6 +11,9 @@ class IntentRouter {
   val q=text.lowercase()
   fun has(vararg words:String)=words.any{q.contains(it)}
   return when {
+   has("next step toward this goal","plan a step for this goal") -> IntentResult(CarpeIntent.GOAL,.9f)
+   has("porn","pornography","sexual content") -> IntentResult(CarpeIntent.CONTENT_GOAL,.9f)
+   has("political viewpoints","multiple political viewpoints","different political perspectives") -> IntentResult(CarpeIntent.POLITICAL_BALANCE,.9f)
    has("cook","recipe","dinner","meal","ingredient","food") -> IntentResult(CarpeIntent.COOK,.92f)
    has("focus","work","study","concentrate","productive") -> IntentResult(CarpeIntent.FOCUS,.90f)
    has("walk","workout","exercise","move","outside","gym") -> IntentResult(CarpeIntent.MOVE,.90f)

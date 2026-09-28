@@ -6,34 +6,29 @@ import org.junit.Test
 
 class AttentionAnalyzerTest {
     @Test
-    fun durationThresholdsAreDescribedAsObservations() {
+    fun durationIsShownAsEvidenceButDoesNotCreateAHarmScore() {
         val report = AttentionAnalyzer().analyze(
-            listOf(AppUsage("video.app", 35)),
+            listOf(AppUsage("video.app", 130)),
             emptyMap()
         )
 
-        assertEquals(15, report.signals.single().score)
-        assertEquals(
-            listOf("At least 30 minutes of foreground use"),
-            report.signals.single().reasons
-        )
-        assertTrue(report.signals.single().reasons.none { it.contains("meaningful", ignoreCase = true) })
+        assertEquals(130L, report.signals.single().minutes)
+        assertEquals(AttentionAssessment.NOT_ASSESSED, report.signals.single().assessment)
+        assertTrue(report.signals.single().reasons.any { it.contains("130 foreground minutes") })
     }
 
     @Test
-    fun userAssessmentChangesCueAndIsNamedInEvidence() {
-        val analyzer = AttentionAnalyzer()
-        val app = listOf(AppUsage("video.app", 130))
+    fun userIntentionAndRatingDetermineTheLabel() {
+        val apps = listOf(AppUsage("video.app", 130), AppUsage("chat.app", 35), AppUsage("news.app", 60))
+        val report = AttentionAnalyzer().analyze(
+            apps,
+            mapOf("video.app" to 1, "chat.app" to 5),
+            mapOf("video.app" to true, "chat.app" to false)
+        )
 
-        val unassessed = analyzer.analyze(app, emptyMap()).signals.single()
-        val pullsAway = analyzer.analyze(app, mapOf("video.app" to 1)).signals.single()
-        val helpful = analyzer.analyze(app, mapOf("video.app" to 5)).signals.single()
-
-        assertEquals(45, unassessed.score)
-        assertEquals(80, pullsAway.score)
-        assertEquals(25, helpful.score)
-        assertTrue(pullsAway.reasons.contains("You rated this app as pulling you away"))
-        assertTrue(helpful.reasons.contains("You rated this app as helpful"))
+        assertEquals(AttentionAssessment.PULLING_AWAY, report.signals[0].assessment)
+        assertEquals(AttentionAssessment.DID_NOT_MATCH, report.signals[1].assessment)
+        assertEquals(AttentionAssessment.NOT_ASSESSED, report.signals[2].assessment)
     }
 
     @Test

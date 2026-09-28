@@ -36,7 +36,7 @@ v0.27.0 Android alpha. Mirror can now request an optional AI explanation after t
 
 AI connection without a CARPE server: open **Me → AI & privacy**, use **Get a Gemini API key in AI Studio**, create a key, paste it into CARPE, save it, and tap **Test AI**. The direct connection uses Google AI Studio's free-tier Gemini API and does not need Cloud Run or linked Cloud billing. Free-tier quotas apply, and Google may use free-tier prompts to improve its products. Only the current request and optional saved profile preferences are sent to AI; earlier chat turns stay on-device. Don't send sensitive details. CARPE encrypts the key with Android Keystore, but client-side keys can still be extracted; this setup is intended for private testing. For a shared/public release, use a trusted backend proxy that keeps provider keys server-side.
 
-An optional trusted CARPE service can still be configured in **Me → AI & privacy** using an HTTPS `/v1/ask` URL. To deploy the included Cloud Run backend, run `bash deploy-carpe.sh` from Google Cloud Shell; Cloud Run requires linked project billing.
+An optional trusted CARPE service can still be configured in **Me → AI & privacy** using an HTTPS `/v1/ask` URL. To deploy the included Cloud Run backend, run `bash deploy-carpe.sh` from Google Cloud Shell; Cloud Run requires linked project billing. The script creates and prints a private service token. Enter both the endpoint and token in CARPE; the backend rejects requests without the token and applies a per-instance request limit.
 
 APK updates are currently manual. GitHub Actions debug builds may use different signing keys, so Android can refuse an in-place update; uninstalling an older debug build may erase its local app data. A stable private signing key and distribution channel are required before automatic updates are enabled.
 
@@ -57,3 +57,5 @@ Product constraints:
 - AI assessments should distinguish beneficial technology use from detrimental or unwanted use rather than treating all screen time as harmful.
 - Users can question, correct, or reject Carpe's interpretation of their behavior.
 - Success is measured by technology serving the user's life, including when the best outcome is spending less time in Carpe itself.
+
+Outcome measures are voluntary user check-ins and whether technology use matched the user's intention. CARPE does not use its own screen time, retention, streaks, or session counts as success measures. See [Outcome measurement](docs/OUTCOME_MEASUREMENT.md).

@@ -25,6 +25,13 @@ object GoalProgress {
     }
 }
 
+object GoalStepPlanner {
+    fun prompt(goalTitle: String): String {
+        val clean = goalTitle.replace('\n', ' ').replace('\r', ' ').trim().take(80)
+        return "Help me choose one small, realistic next step toward this goal: $clean. Keep it practical and let me decide whether to do it."
+    }
+}
+
 /** Stores user-authored goals and check-ins on this device. No streaks, reminders, or cloud sync. */
 class UserGoalStore(context: Context) {
     private val prefs = context.getSharedPreferences("carpe_goals", Context.MODE_PRIVATE)
