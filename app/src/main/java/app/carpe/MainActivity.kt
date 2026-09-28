@@ -234,6 +234,9 @@ private class ChatSession {
  var showAuditLabel by remember{mutableStateOf(auditStore.sourceLabel().isNotBlank())}
  val isAuditing=remember(auditRefresh){auditStore.isActive()}
  val auditReport=remember(auditRefresh){auditStore.report()}
+ val auditHistory=remember(auditRefresh){auditStore.history()}
+ val auditComparison=remember(auditHistory){ScreenAuditComparison.between(auditHistory)}
+ var compareSamples by remember(auditRefresh){mutableStateOf(auditStore.historyEnabled())}
  val auditError=remember(auditRefresh){auditStore.error()}
  var auditPending by remember{mutableStateOf(false)}
  LaunchedEffect(isAuditing,auditPending){
@@ -263,6 +266,13 @@ private class ChatSession {
   if(granted)startProjection() else {auditStore.setError("Allow notifications so Android can show the active session and Stop control.");auditRefresh++}
  }
  Text("Visible feed sample",fontWeight=FontWeight.Bold,fontSize=21.sp,color=Ink)
+ Card(colors=CardDefaults.cardColors(containerColor=White)){Row(Modifier.fillMaxWidth().padding(14.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)){
+  Column(Modifier.weight(1f)){
+   Text("Compare recent samples",fontWeight=FontWeight.SemiBold,color=Ink)
+   Text("Optional. Keeps up to 5 aggregate summaries on this device; no images or recognized words.",fontSize=12.sp,color=Muted,lineHeight=16.sp)
+  }
+  Switch(checked=compareSamples,onCheckedChange={enabled->compareSamples=enabled;auditStore.setHistoryEnabled(enabled);auditRefresh++})
+ }}
  Card(colors=CardDefaults.cardColors(containerColor=Peach)){Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
   Text("A short, optional check of what appears on your screen",fontWeight=FontWeight.SemiBold)
   Text("Choose one app if available; older Android may share the whole screen. Up to 2 minutes, on-device only. Images and recognized words are discarded, never sent to AI.",color=Muted,fontSize=13.sp,lineHeight=18.sp)
@@ -290,7 +300,20 @@ private class ChatSession {
    Text("Continue or autoplay prompts: ${cueSummary(auditReport,auditReport.continuePromptScreens)}")
    Text("Screens with similar visible text: ${cueSummary(auditReport,auditReport.similarScreens)}")
    Text("These are counts from this short sample, not the full feed or the app’s internal ranking. A visible label is evidence of wording on screen; similarity can also come from repeated interface text. CARPE does not keep the words it reads.",fontSize=12.sp,color=Muted)
-   TextButton(onClick={auditStore.clear();auditRefresh++},enabled=!isAuditing){Text("Clear this report")}
+   TextButton(onClick={auditStore.clearReports();auditRefresh++},enabled=!isAuditing){Text("Clear local audit summaries")}
+  }}
+ }
+ if(compareSamples && auditComparison!=null){
+  Text("Across your last two samples",fontWeight=FontWeight.Bold,fontSize=19.sp,color=Ink)
+  Card(colors=CardDefaults.cardColors(containerColor=White)){Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){
+   Text(if(auditComparison.latest.sourceLabel.isBlank())"Unlabeled samples" else auditComparison.latest.sourceLabel,fontWeight=FontWeight.SemiBold)
+   auditComparison.cueRates().forEach{rate->
+    val earlier=rate.earlierPercent
+    val latest=rate.latestPercent
+    Text(rate.label+": "+(earlier?.let{"$it%"} ?: "no data")+" → "+(latest?.let{"$it%"} ?: "no data"),fontSize=14.sp)
+   }
+   Text("Percentages are shares of readable screens in two short samples. Differences can reflect what happened to be on screen; they do not show why an app ranked content or represent its full feed.",fontSize=12.sp,color=Muted,lineHeight=17.sp)
+   TextButton(onClick={auditStore.clearReports();auditRefresh++}){Text("Clear local audit summaries")}
   }}
  }
  var permissionRefresh by remember{mutableIntStateOf(0)}
