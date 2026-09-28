@@ -55,7 +55,8 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
  val names=listOf("More time offline","Fitness & movement","Home cooking","Focused work","Saving money","Less compulsive content")
  val goals=names.filter{prefs.getBoolean("goal_"+it.lowercase().replace(" ","_").replace("&","and"),it=="More time offline"||it=="Focused work")}
  val top=if(u.isGranted())u.last24Hours().take(12) else emptyList()
- val historyStore=remember{BehaviorHistory(androidx.compose.ui.platform.LocalContext.current)}
+ val coachContext=androidx.compose.ui.platform.LocalContext.current
+ val historyStore=remember(coachContext){BehaviorHistory(coachContext)}
  if(u.isGranted()) historyStore.capture(top,a.todayMinutes())
  val patterns=PatternEngine().findings(historyStore.recent(),top)
  val suggestions=AiCoach().suggest(CoachContext(a.todayMinutes(),goals,top,a.recent()))
