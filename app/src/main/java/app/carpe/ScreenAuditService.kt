@@ -63,8 +63,8 @@ class ScreenAuditService : Service() {
             fail("Screen capture permission was not granted.")
             return START_NOT_STICKY
         }
-        startForegroundCompat()
         try {
+            startForegroundCompat()
             val manager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
             projection = manager.getMediaProjection(resultCode, data)
             val currentProjection = projection ?: error("Screen capture could not start.")
