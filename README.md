@@ -24,6 +24,12 @@ gradle assembleDebug
 
 APK output: `app/build/outputs/apk/debug/app-debug.apk`.
 
+## GitHub AI helpers
+
+After this change is merged, repository collaborators can ask for help on GitHub by commenting `/carpe-help` on an issue or `/carpe-review` on a pull request. The helpers only post advisory comments; they cannot edit code, approve, merge, or deploy. They run only on explicit commands from repository collaborators.
+
+To enable them, add a `GEMINI_API_KEY` Actions secret in **Settings → Secrets and variables → Actions**. Never put the key in an issue or commit. The default model is `gemini-3.6-flash`; a repository variable named `GEMINI_MODEL` can override it. An explicit command sends the issue title, description, command comment, or pull request diff to Google's Gemini API, so don't invoke the bot on confidential or sensitive content. API quotas and pricing depend on Google's current account terms. If no key is configured, the workflow replies with setup instructions.
+
 ## Status
 
 v0.19 Android alpha. The orange-and-white interface keeps the Today composer, user-chosen goals, and offline actions central. Coach uses local goals and optional usage access; Focus supports deliberate breaks; Mirror lets users rate apps and inspect their own visible feed cues. Optional screen audits require a fresh Android screen-sharing choice each time, show an ongoing notification with Stop, and end after at most two minutes. On-device text recognition keeps only aggregate counts; captured frames and OCR text are not saved or sent to AI. A sample can identify visible labels such as Sponsored or Suggested for you, but cannot reveal or prove an app's internal ranking logic. CARPE does not block apps or alter their feeds.
