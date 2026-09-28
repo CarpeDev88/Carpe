@@ -223,6 +223,7 @@ private class ChatSession {
  val isAuditing=remember(auditRefresh){auditStore.isActive()}
  val auditReport=remember(auditRefresh){auditStore.report()}
  val auditError=remember(auditRefresh){auditStore.error()}
+ var showAuditDetails by remember{mutableStateOf(false)}
  LaunchedEffect(Unit){while(true){delay(1000);auditRefresh++}}
  val projectionManager=remember(c){c.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager}
  val projectionLauncher=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()){result->
@@ -240,8 +241,9 @@ private class ChatSession {
  Text("Visible feed sample",fontWeight=FontWeight.Bold,fontSize=21.sp,color=Ink)
  Card(colors=CardDefaults.cardColors(containerColor=Peach)){Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
   Text("A short, optional check of what appears on your screen",fontWeight=FontWeight.SemiBold)
-  Text("You start each session. Android asks what to share; choose one app when available. CARPE samples for up to 2 minutes, reads visible labels on this device, and keeps only a small summary. Images and recognized text are discarded and are never sent to AI.",color=Muted,fontSize=13.sp,lineHeight=18.sp)
-  Text("This can spot labels such as Sponsored or Suggested for you. It cannot reveal the platform’s ranking formula or prove why an item appeared.",color=Muted,fontSize=13.sp,lineHeight=18.sp)
+  Text("You choose the app in Android's share prompt. Up to 2 minutes, on-device only; images and recognized words are discarded and never sent to AI.",color=Muted,fontSize=13.sp,lineHeight=18.sp)
+  TextButton(onClick={showAuditDetails=!showAuditDetails}){Text(if(showAuditDetails)"Hide sample details" else "What this sample can tell me")}
+  if(showAuditDetails)Text("CARPE counts visible labels such as Sponsored or Suggested for you and similar text across samples. It cannot reveal the platform’s ranking formula or prove why an item appeared.",color=Muted,fontSize=13.sp,lineHeight=18.sp)
   if(isAuditing){
    Button(onClick={c.startService(Intent(c,ScreenAuditService::class.java).setAction(ScreenAuditIntents.ACTION_STOP))},modifier=Modifier.fillMaxWidth()){Text("Stop screen audit")}
    Text("Audit active • samples are processed locally",color=Orange,fontWeight=FontWeight.SemiBold,fontSize=13.sp)
