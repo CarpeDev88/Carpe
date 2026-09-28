@@ -49,12 +49,14 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
  var input by remember{mutableStateOf("")}; var response by remember{mutableStateOf("")}; var thinking by remember{mutableStateOf(false)}
  val profile=remember{UserProfileStore(c)}
  val voice=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()){r->r.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.let{input=it}}
- fun act(){val q=input.trim();if(q.isBlank()||thinking)return;profile.learn(q);response=when{
-  q.contains("cook",true)||q.contains("recipe",true)||q.contains("dinner",true)||q.contains("meal",true)||q.contains("ingredient",true)->SecureAiGateway().ask("Act as CARPE cooking coach. Keep the user inside CARPE. Give practical recipe ideas based on their request, ingredients, budget, time, dietary needs, and skill level. Prefer home cooking over ordering food. Ask one useful follow-up question when needed. User request: "+q,profile.summary())
-  q.contains("focus",true)||q.contains("work",true)->"Use the Focus tab for a protected 25-minute block. CARPE's goal is to help you put the phone down."
-  q.contains("walk",true)||q.contains("workout",true)||q.contains("exercise",true)||q.contains("move",true)->"Choose a small movement you can start now. Ten to fifteen minutes is enough to break the loop."
-  q.contains("buy",true)||q.contains("spend",true)||q.contains("save",true)->"Pause the purchase. Ask what problem it solves, whether you already own an alternative, and whether waiting 24 hours changes the decision."
-  else->SecureAiGateway().ask(q,profile.summary())
+ val router=remember{IntentRouter()}
+ fun act(){val q=input.trim();if(q.isBlank()||thinking)return;profile.learn(q);val routed=router.classify(q);response=when(routed.intent){
+  CarpeIntent.COOK->"Let's cook without leaving CARPE. Tell me what ingredients you have, how much time you want to spend, and any budget or dietary limits. Example: chicken, rice and broccoli; 25 minutes; under $12."
+  CarpeIntent.FOCUS->"Let's turn that intention into action. Open Focus below for a protected 25-minute block, then put the phone down."
+  CarpeIntent.MOVE->"Choose the smallest useful movement you can start now: a 10-minute walk, stretching, or a short workout. The goal is doing it, not staying in CARPE."
+  CarpeIntent.SPEND->"Before buying, name what problem the purchase solves, whether you already own an alternative, and whether waiting 24 hours would change the decision."
+  CarpeIntent.REFLECT->"You noticed the loop—that is useful information. Pick one small departure: put the phone down for 10 minutes, walk outside, make food, or start one task you care about."
+  CarpeIntent.UNKNOWN->SecureAiGateway().ask(q,profile.summary())
  }}
  OutlinedTextField(value=input,onValueChange={input=it},modifier=Modifier.fillMaxWidth().heightIn(min=120.dp),placeholder={Text("Ask CARPE anything…")},maxLines=6)
  Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)){OutlinedButton(onClick={try{voice.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM).putExtra(RecognizerIntent.EXTRA_PROMPT,"Talk to CARPE"))}catch(_:Exception){response="Voice recognition isn't available on this device."}},modifier=Modifier.weight(1f)){Text("🎤  Speak")};Button(onClick={act()},enabled=!thinking,modifier=Modifier.weight(1f)){Text(if(thinking)"Thinking…" else "Send")}}
