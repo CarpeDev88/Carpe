@@ -1,5 +1,7 @@
 package app.carpe
 
+import android.app.AlertDialog
+import android.app.ProgressDialog
 import android.app.usage.UsageStatsManager
 import android.Manifest
 import android.content.Context
@@ -14,6 +16,7 @@ import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
+import androidx.lifecycle.lifecycleScope
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -29,6 +32,8 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.text.KeyboardOptions
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.CoroutineScope
 import androidx.compose.ui.Modifier
@@ -49,7 +54,63 @@ private val Peach=Color(0xFFFFEFE3)
 private val Ink=Color(0xFF292522)
 private val Muted=Color(0xFF6D625B)
 private val Line=Color(0xFFE9DED6)
-class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.onCreate(b);setContent{CarpeApp()}}}
+class MainActivity:ComponentActivity(){
+ private var updateCheckStarted=false
+ private var pendingUpdate:CarpeUpdate?=null
+ override fun onCreate(b:Bundle?){super.onCreate(b);setContent{CarpeApp()}}
+ override fun onResume(){
+  super.onResume()
+  if(pendingUpdate!=null && Build.VERSION.SDK_INT>=26 && packageManager.canRequestPackageInstalls()){
+   val update=pendingUpdate
+   pendingUpdate=null
+   if(update!=null) downloadUpdate(update)
+  }else if(!updateCheckStarted){
+   updateCheckStarted=true
+   lifecycleScope.launch {
+    val update=CarpeUpdates.checkForUpdate(BuildConfig.VERSION_NAME)
+    if(update!=null && !isFinishing && !isDestroyed) offerUpdate(update)
+   }
+  }
+ }
+ private fun offerUpdate(update:CarpeUpdate){
+  AlertDialog.Builder(this)
+   .setTitle("CARPE "+update.version+" is available")
+   .setMessage("CARPE will download the verified update. Android will ask you to approve installation. You can keep using the app if you choose Later.")
+   .setPositiveButton("Update"){_,_->prepareUpdate(update)}
+   .setNegativeButton("Later",null)
+   .show()
+ }
+ private fun prepareUpdate(update:CarpeUpdate){
+  if(Build.VERSION.SDK_INT>=26 && !packageManager.canRequestPackageInstalls()){
+   AlertDialog.Builder(this)
+    .setTitle("Allow CARPE updates")
+    .setMessage("Android needs your approval to let CARPE open the system installer. CARPE cannot install silently.")
+    .setPositiveButton("Open Android settings"){_,_->
+     pendingUpdate=update
+     startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,Uri.parse("package:"+packageName)))
+    }
+    .setNegativeButton("Cancel",null)
+    .show()
+   return
+  }
+  downloadUpdate(update)
+ }
+ private fun downloadUpdate(update:CarpeUpdate){
+  val progress=ProgressDialog(this).apply{setMessage("Downloading and checking CARPE update…");setCancelable(false);show()}
+  lifecycleScope.launch {
+   try{
+    val apk=CarpeUpdates.downloadAndVerify(this@MainActivity,update)
+    startActivity(CarpeUpdates.installerIntent(this@MainActivity,apk))
+   }catch(error:Exception){
+    if(!isFinishing && !isDestroyed) AlertDialog.Builder(this@MainActivity)
+     .setTitle("Update not installed")
+     .setMessage(error.message?: "CARPE could not download this update. The current app and its data were left in place.")
+     .setPositiveButton("OK",null)
+     .show()
+   }finally{progress.dismiss()}
+  }
+ }
+}
 
 private class ChatSession {
  val input=mutableStateOf("")
@@ -188,7 +249,10 @@ private class ChatSession {
 @Composable private fun Coach(p:PaddingValues,prefs:android.content.SharedPreferences,u:UsageAccess,a:ActionStore,r:Int,onAction:(String)->Unit,onPlanGoal:(String)->Unit,onGoalLogged:()->Unit)=Page(p,"CARPE intelligence","Recommendations use only the context you choose to provide. Device usage stays local in this alpha."){
  val names=listOf("More time offline","Fitness & movement","Home cooking","Focused work","Saving money","Less compulsive content","Reduce porn use","Think across political viewpoints")
  val goals=names.filter{prefs.getBoolean("goal_"+it.lowercase().replace(" ","_").replace("&","and"),it=="More time offline"||it=="Focused work")}
- val top=if(u.isGranted())u.last24Hours().take(12) else emptyList()
+ val hasUsageAccess=u.isGranted()
+ val top by produceState(initialValue=emptyList<AppUsage>(),key1=r,key2=hasUsageAccess){
+  value=if(hasUsageAccess)runCatching{withContext(Dispatchers.IO){u.last24Hours().take(12)}}.getOrDefault(emptyList()) else emptyList()
+ }
  val coachContext=androidx.compose.ui.platform.LocalContext.current
   val goalStore=remember(coachContext){UserGoalStore(coachContext)}
   val userGoals=remember(r){goalStore.goals()}
