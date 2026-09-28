@@ -59,12 +59,24 @@ jobs:
             adb shell pidof app.carpe
             adb shell screencap -p /sdcard/carpe-today.png
             adb pull /sdcard/carpe-today.png carpe-today.png
+            adb shell input tap 160 580
+            sleep 2
+            adb shell screencap -p /sdcard/carpe-focus.png
+            adb pull /sdcard/carpe-focus.png carpe-focus.png
+            adb shell input tap 224 580
+            sleep 2
+            adb shell screencap -p /sdcard/carpe-shield.png
+            adb pull /sdcard/carpe-shield.png carpe-shield.png
+            adb shell input tap 288 580
+            sleep 2
+            adb shell screencap -p /sdcard/carpe-me.png
+            adb pull /sdcard/carpe-me.png carpe-me.png
       - name: Save emulator screenshot
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: carpe-emulator-screenshot
-          path: carpe-today.png
+          path: carpe-*.png
       - uses: actions/upload-artifact@v4
         with:
           name: carpe-debug-apk
