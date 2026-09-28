@@ -1,6 +1,6 @@
 {
-  "versionCode": 4,
-  "versionName": "0.4.0",
+  "versionCode": 5,
+  "versionName": "0.5.0",
   "downloadUrl": "https://github.com/CarpeDev88/Carpe/actions/workflows/android.yml",
-  "message": "CARPE intelligence alpha: longitudinal baselines, attention-risk evidence, notification pressure, and reopening-pattern analysis."
+  "message": "CARPE v0.5 testing release: Coach pattern learning, usage intelligence, notification pressure, reopening analysis, focus sessions, goals, action history, privacy controls, and new identity."
 }
