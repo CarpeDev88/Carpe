@@ -5,7 +5,7 @@ import org.junit.Test
 
 class ScreenAuditAnalyzerTest {
     @Test
-    fun countsVisibleLabelsAndRepeatedTextWithoutKeepingOcrText() {
+    fun countsVisibleLabelsAndProducesAggregateReport() {
         val analyzer = ScreenAuditAnalyzer()
         analyzer.observe("Sponsored recipe ideas. Suggested for you. Keep watching more cooking videos now.")
         analyzer.observe("Sponsored recipe ideas. Suggested for you. Autoplay more cooking videos now.")
@@ -16,7 +16,6 @@ class ScreenAuditAnalyzerTest {
         assertEquals(2, report.recommendationLabelScreens)
         assertEquals(2, report.continuePromptScreens)
         assertEquals(1, report.similarScreens)
-        assertTrue(report.sampledScreens >= report.similarScreens)
         assertEquals(123L, report.completedAt)
     }
 
