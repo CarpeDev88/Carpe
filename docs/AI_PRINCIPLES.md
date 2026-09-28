@@ -36,3 +36,20 @@ The user's explicit correction outranks an inferred classification.
 - Avoid moralizing ordinary technology use.
 - Never infer sensitive traits merely to improve engagement.
 - Recommendations should be explainable, dismissible, and reversible.
+
+
+## Trust invariants
+
+These are product constraints, not optimization targets:
+
+- CARPE has no advertising or behavioral-data sales.
+- Raw usage events and notification contents do not leave the device.
+- Notification intelligence records metadata only; message content is not parsed or retained.
+- Cloud AI receives data only through the explicit `CloudAiContext` allowlist.
+- Core conversation and local actions remain useful without optional monitoring permissions.
+- User goals outrank inferred goals. CARPE suggests; the user decides.
+- No diagnosis of addiction or other conditions from device behavior.
+- No covert or remote monitoring of another person.
+- Recommendations should have a finite end state; CARPE should be comfortable being closed.
+- Learned profile information must be visible and clearable by the user.
+- Changes to these invariants require explicit review, documentation, and tests.
