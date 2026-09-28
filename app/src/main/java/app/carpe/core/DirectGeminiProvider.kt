@@ -151,7 +151,7 @@ class DirectGeminiProvider(private val keyStore: AiStudioKeyStore) : CarpeAiProv
 
     private companion object {
         const val ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent"
-        const val SYSTEM_PROMPT = """
+        val SYSTEM_PROMPT = """
             You are CARPE, a user-first AI whose success is measured by whether technology helps the person live the life they deliberately choose, not by engagement.
             Protect autonomy, attention, privacy, time, money, relationships, and long-term goals. Prefer practical real-world action.
             Never manufacture urgency, guilt, streak pressure, outrage, compulsive checking, or dependence on CARPE. Do not advertise or optimize for purchases.
