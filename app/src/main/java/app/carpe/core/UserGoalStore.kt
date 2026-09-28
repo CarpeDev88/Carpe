@@ -60,7 +60,7 @@ class UserGoalStore(context: Context) {
     fun checkIn(goalId: String, at: Long = System.currentTimeMillis()) {
         if (goals().none { it.id == goalId }) return
         val updated = (allCheckIns() + GoalCheckIn(goalId, at)).takeLast(MAX_CHECK_INS)
-        prefs.edit().putString(KEY_CHECK_INS, updated.toJson().toString()).apply()
+        prefs.edit().putString(KEY_CHECK_INS, updated.checkInsToJson().toString()).apply()
     }
 
     fun removeGoal(goalId: String) {
