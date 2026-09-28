@@ -17,11 +17,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.foundation.text.KeyboardOptions
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.CoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -76,6 +79,8 @@ private class ChatSession {
  var showRecipeSearch by remember{mutableStateOf(false)}
  var recipeInput by remember{mutableStateOf("")}
  val gateway=remember{SecureAiGateway(c)}; val history=chat.history
+ val directKeyStore=remember{AiStudioKeyStore(c)}
+ val directProvider=remember{DirectGeminiProvider(directKeyStore)}
  val profile=remember{UserProfileStore(c)}
  val voice=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()){r->r.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.let{input=it}}
  val router=remember{IntentRouter()}
@@ -90,13 +95,14 @@ private class ChatSession {
   val local=LocalAssistant.reply(intent,q)
   response="";actionLogged=false;val prior=history.toList();history+=AiTurn("user",q);input=""
   while(history.size>20)history.removeAt(0)
-  if(SecureAiGateway.configuredEndpoint(c).isBlank()){
+  if(!directKeyStore.hasKey() && SecureAiGateway.configuredEndpoint(c).isBlank()){
    response="Cloud AI is not connected yet. Here's what CARPE can do locally:\n\n$local"
    history+=AiTurn("assistant",local)
    return
   }
   thinking=true
-  scope.launch{gateway.ask(q,if(profile.enabled())profile.summary() else "",prior).fold(
+  val provider=if(directKeyStore.hasKey())directProvider else gateway
+  scope.launch{provider.ask(q,if(profile.enabled())profile.summary() else "",prior).fold(
    onSuccess={answer->response=answer;history+=AiTurn("assistant",answer)},
    onFailure={e->
     response="Cloud AI is unavailable (${e.message ?: "connection failed"}). Here's a local suggestion:\n\n$local"
@@ -105,7 +111,7 @@ private class ChatSession {
    }
   );thinking=false}
  }
- if(SecureAiGateway.configuredEndpoint(c).isBlank()) ElevatedCard {
+ if(!directKeyStore.hasKey() && SecureAiGateway.configuredEndpoint(c).isBlank()) ElevatedCard {
   Row(Modifier.fillMaxWidth().padding(10.dp),horizontalArrangement=Arrangement.SpaceBetween){
    Column(Modifier.weight(1f)){
     Text("Cloud AI offline",fontWeight=FontWeight.Bold)
@@ -114,7 +120,8 @@ private class ChatSession {
    TextButton(onClick=openSettings){Text("Connect")}
   }
  }
- else Text("When you tap Send, your message, recent chat, and any AI profile you enabled go to the CARPE service and its AI provider.",color=Color.DarkGray,fontSize=12.sp)
+ else if(directKeyStore.hasKey()) Text("When you tap Send, only your current request and, if enabled, saved profile preferences go directly to Google Gemini. Earlier chat turns stay on this device. AI Studio free-tier prompts may be used to improve Google products; avoid sensitive details. Keys stored in a mobile app can still be extracted, so use this connection for private testing.",color=Color.DarkGray,fontSize=12.sp)
+ else Text("When you tap Send, only your current request and any enabled saved profile preferences go to the configured CARPE service and its AI provider. Earlier chat turns stay on this device.",color=Color.DarkGray,fontSize=12.sp)
  OutlinedTextField(value=input,onValueChange={input=it},modifier=Modifier.fillMaxWidth().heightIn(min=88.dp),placeholder={Text("Ask CARPE anything…")},maxLines=6)
  Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)){OutlinedButton(onClick={try{voice.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM).putExtra(RecognizerIntent.EXTRA_PROMPT,"Talk to CARPE"))}catch(_:Exception){response="Voice recognition isn't available on this device."}},modifier=Modifier.weight(1f)){Text("🎤  Speak")};Button(onClick={act()},enabled=!thinking,modifier=Modifier.weight(1f)){Text(if(thinking)"Thinking…" else "Send")}}
  if(response.isNotBlank()) ElevatedCard{Text(response,Modifier.fillMaxWidth().padding(16.dp))}
@@ -252,23 +259,28 @@ private class ChatSession {
  val context=androidx.compose.ui.platform.LocalContext.current
  val profile=remember{UserProfileStore(context)}
  var aiProfile by remember{mutableStateOf(profile.enabled())}
- Text("AI & privacy",fontWeight=FontWeight.Bold,fontSize=20.sp)
- Text("Cloud AI uses a CARPE service URL. Your message, recent chat, and any AI profile you enabled are sent to that service and its AI provider when you tap Send. Never enter an AI key here.",color=Color.DarkGray,fontSize=13.sp)
+ val keyStore=remember{AiStudioKeyStore(context)}
+ val directProvider=remember{DirectGeminiProvider(keyStore)}
+ var directConfigured by remember{mutableStateOf(keyStore.hasKey())}
+ var apiKeyInput by remember{mutableStateOf("")}
  var endpointInput by remember{mutableStateOf(SecureAiGateway.configuredEndpoint(context))}
  var serviceStatus by remember{mutableStateOf("")}
  var testing by remember{mutableStateOf(false)}
  val scope=rememberCoroutineScope()
- OutlinedTextField(value=endpointInput,onValueChange={endpointInput=it},modifier=Modifier.fillMaxWidth(),label={Text("CARPE AI service URL")},placeholder={Text("https://…/v1/ask")},singleLine=true)
+ Text("AI & privacy",fontWeight=FontWeight.Bold,fontSize=20.sp)
+ Text("Connect directly through Google AI Studio's free-tier Gemini API, with no CARPE server or billing-linked Cloud Run service. When you send a request, CARPE sends only that request and optional saved profile preferences; earlier chat turns stay on this device. Free-tier prompts may be used by Google to improve products; avoid sensitive details. A key encrypted on this device can still be extracted from a mobile app, so use this direct option for private testing.",color=Color.DarkGray,fontSize=13.sp)
+ OutlinedButton(onClick={runCatching{context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://aistudio.google.com/app/apikey")))}.onFailure{serviceStatus="Couldn't open AI Studio."}}){Text("Get a Gemini API key in AI Studio")}
+ OutlinedTextField(value=apiKeyInput,onValueChange={apiKeyInput=it},modifier=Modifier.fillMaxWidth(),label={Text(if(directConfigured)"Replace Gemini API key" else "Gemini API key")},placeholder={Text("Paste your AI Studio key")},singleLine=true,visualTransformation=PasswordVisualTransformation(),keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Password))
  Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
-  Button(onClick={
-   runCatching{SecureAiGateway.setEndpoint(context,endpointInput)}.fold(
-    onSuccess={serviceStatus="Service URL saved. Tap Test AI to check the provider."},
-    onFailure={serviceStatus=it.message ?: "Invalid service URL"})
-  }){Text("Save URL")}
+  Button(onClick={runCatching{keyStore.saveKey(apiKeyInput)}.fold(onSuccess={directConfigured=true;apiKeyInput="";serviceStatus="Gemini key saved on this device."},onFailure={serviceStatus=it.message ?: "Couldn't save Gemini key."})},enabled=apiKeyInput.isNotBlank()){Text("Save Gemini key")}
+  if(directConfigured)TextButton(onClick={keyStore.clear();directConfigured=false;serviceStatus="Gemini key cleared from this device."}){Text("Clear key")}
+ }
+ Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
   OutlinedButton(onClick={
-   if(SecureAiGateway.configuredEndpoint(context).isBlank())serviceStatus="Save a service URL first."
-   else {testing=true;serviceStatus="Contacting CARPE AI…";scope.launch{
-    SecureAiGateway(context).ask("Reply with one short sentence confirming CARPE AI is responding.","",emptyList()).fold(
+   if(!directConfigured && SecureAiGateway.configuredEndpoint(context).isBlank())serviceStatus="Add a Gemini key or save an optional service URL first."
+   else {testing=true;serviceStatus="Contacting AI…";scope.launch{
+    val provider=if(directConfigured)directProvider else SecureAiGateway(context)
+    provider.ask("Reply with one short sentence confirming CARPE AI is responding.","",emptyList()).fold(
      onSuccess={serviceStatus="AI responding: $it"},
      onFailure={serviceStatus="AI test failed: ${it.message ?: "Unknown error"}"})
     testing=false
@@ -276,7 +288,16 @@ private class ChatSession {
   },enabled=!testing){Text(if(testing)"Testing…" else "Test AI")}
  }
  if(serviceStatus.isNotBlank())Text(serviceStatus,color=Green)
- if(SecureAiGateway.configuredEndpoint(context).isNotBlank())TextButton(onClick={SecureAiGateway.clearEndpoint(context);endpointInput="";serviceStatus="Custom URL cleared."}){Text("Clear custom URL")}
+ Text("Optional: connect a trusted CARPE AI service URL instead. This requires someone to deploy and operate that backend.",color=Color.DarkGray,fontSize=12.sp)
+ OutlinedTextField(value=endpointInput,onValueChange={endpointInput=it},modifier=Modifier.fillMaxWidth(),label={Text("Optional CARPE AI service URL")},placeholder={Text("https://…/v1/ask")},singleLine=true)
+ Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
+  Button(onClick={
+   runCatching{SecureAiGateway.setEndpoint(context,endpointInput)}.fold(
+    onSuccess={serviceStatus="Service URL saved. Tap Test AI to check the provider."},
+    onFailure={serviceStatus=it.message ?: "Invalid service URL"})
+  }){Text("Save URL")}
+  if(SecureAiGateway.configuredEndpoint(context).isNotBlank())TextButton(onClick={SecureAiGateway.clearEndpoint(context);endpointInput="";serviceStatus="Custom URL cleared."}){Text("Clear URL")}
+ }
  Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Column(Modifier.weight(1f)){Text("Build my AI profile");Text("Learn from what I tell CARPE. Stored locally and sent to Google only with my requests.",color=Color.DarkGray,fontSize=12.sp)};Switch(aiProfile,{aiProfile=it;profile.setEnabled(it)})}
  if(aiProfile){var profileText by remember{mutableStateOf(profile.summary())};Text("What CARPE remembers",fontWeight=FontWeight.Bold);Text(profileText,fontSize=13.sp);OutlinedButton(onClick={profile.clear();profileText=profile.summary()}){Text("Clear AI profile")}}
  HorizontalDivider()
@@ -294,6 +315,7 @@ private class ChatSession {
    listOf("carpe","carpe_actions","carpe_ai_profile","carpe_ai_service","behavior_history","notification_pressure","carpe_learning","carpe_focus").forEach{name->
     context.getSharedPreferences(name,Context.MODE_PRIVATE).edit().clear().commit()
    }
+   keyStore.clear()
    confirmErase=false
    (context as? android.app.Activity)?.recreate()
   }){Text("Erase data")}},

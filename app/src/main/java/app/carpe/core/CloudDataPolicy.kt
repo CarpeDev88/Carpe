@@ -15,6 +15,17 @@ data class CloudAiContext(
 )
 
 object CloudDataPolicy {
+ fun forUserRequest(message:String, profileSummary:String = ""):CloudAiContext = sanitize(
+  CloudAiContext(
+   userRequest=message,
+   userChosenPreferences=profileSummary.lineSequence()
+    .map{it.trim()}
+    .filter{it.startsWith("• ")}
+    .map{it.removePrefix("• ").trim()}
+    .filter{it.isNotBlank()}
+    .toList()
+  )
+ )
  fun sanitize(c: CloudAiContext): CloudAiContext = c.copy(
   userRequest=c.userRequest.trim().take(2000),
   userChosenGoals=c.userChosenGoals.map{it.take(120)}.take(12),
