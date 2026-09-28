@@ -457,6 +457,23 @@ private fun cueSummary(report:ScreenAuditReport,count:Int):String =
    }
   }}
  }
+ HorizontalDivider()
+ Text("How CARPE learns",fontWeight=FontWeight.Bold,fontSize=20.sp)
+ Text("Only feedback you tap on a suggestion is used. It stays on this device, and a few ratings have limited influence.",color=Muted,fontSize=13.sp,lineHeight=18.sp)
+ val learning=remember(context){LearningStore(context)}
+ var feedbackRevision by remember{mutableIntStateOf(0)}
+ val feedbackSummary=remember(feedbackRevision){learning.feedbackSummary()}
+ val trackedIntents=listOf(CarpeIntent.COOK to "Cooking",CarpeIntent.FOCUS to "Focus",CarpeIntent.MOVE to "Movement",CarpeIntent.SPEND to "Spending",CarpeIntent.REFLECT to "Reflection")
+ var hasRecommendationFeedback=false
+ trackedIntents.forEach{(intent,label)->
+  val counts=feedbackSummary[intent] ?: IntentFeedback(0,0)
+  if(counts.total>0){
+   hasRecommendationFeedback=true
+   Text("$label: ${counts.helpful} helpful of ${counts.total} ratings",color=Ink,fontSize=14.sp)
+  }
+ }
+ if(!hasRecommendationFeedback)Text("No recommendation feedback saved yet.",color=Muted,fontSize=13.sp)
+ if(hasRecommendationFeedback)OutlinedButton(onClick={learning.clearRecommendationFeedback();feedbackRevision++}){Text("Clear recommendation learning")}
  HorizontalDivider();Text(a.todayMinutes().toString()+" minutes invested in deliberate actions",fontSize=22.sp,fontWeight=FontWeight.Bold)
  a.recent(8).forEach{Text("• "+it.title+" — "+it.minutes+" min")}
  var confirmErase by remember{mutableStateOf(false)}
