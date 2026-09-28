@@ -231,6 +231,7 @@ private class ChatSession {
  val auditStore=remember(c){ScreenAuditStore(c)}
  var auditRefresh by remember{mutableIntStateOf(0)}
  var auditSourceLabel by remember(c){mutableStateOf(auditStore.sourceLabel())}
+ var showAuditLabel by remember{mutableStateOf(auditStore.sourceLabel().isNotBlank())}
  val isAuditing=remember(auditRefresh){auditStore.isActive()}
  val auditReport=remember(auditRefresh){auditStore.report()}
  val auditError=remember(auditRefresh){auditStore.error()}
@@ -266,8 +267,8 @@ private class ChatSession {
  Card(colors=CardDefaults.cardColors(containerColor=Peach)){Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
   Text("A short, optional check of what appears on your screen",fontWeight=FontWeight.SemiBold)
   Text("Choose one app if Android offers it; older versions may share your whole screen. Up to 2 minutes, on-device only; images and recognized words are discarded, never sent to AI.",color=Muted,fontSize=13.sp,lineHeight=18.sp)
-  OutlinedTextField(value=auditSourceLabel,onValueChange={auditSourceLabel=it.take(60)},modifier=Modifier.fillMaxWidth(),label={Text("App or feed being reviewed (optional)")},singleLine=true)
-  Text("This label is saved with the local report so you can tell which sample it describes.",color=Muted,fontSize=12.sp)
+  if(showAuditLabel)OutlinedTextField(value=auditSourceLabel,onValueChange={auditSourceLabel=it.take(60)},modifier=Modifier.fillMaxWidth(),label={Text("App/feed label (optional)")},singleLine=true)
+  else TextButton(onClick={showAuditLabel=true}){Text("Add an app label (optional)")}
   TextButton(onClick={showAuditDetails=!showAuditDetails}){Text(if(showAuditDetails)"Hide sample details" else "What this sample can tell me")}
   if(showAuditDetails)Text("CARPE counts visible labels such as Sponsored or Suggested for you and similar text across samples. It cannot reveal the platform’s ranking formula or prove why an item appeared.",color=Muted,fontSize=13.sp,lineHeight=18.sp)
   if(isAuditing){
