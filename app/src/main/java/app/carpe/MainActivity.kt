@@ -17,9 +17,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.rememberCoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -51,9 +48,15 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
 @Composable private fun Page(p:PaddingValues,title:String,sub:String,body:@Composable ColumnScope.()->Unit){Column(Modifier.fillMaxSize().padding(p).verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){Text("CARPE",color=Green,fontWeight=FontWeight.Bold,letterSpacing=3.sp);Text(title,fontSize=32.sp,fontWeight=FontWeight.Bold);Text(sub,color=Color.DarkGray);body();Spacer(Modifier.height(30.dp))}}
 @Composable private fun Today(p:PaddingValues,c:Context,s:ActionStore,changed:()->Unit)=Page(p,"What do you want to do right now?","Tell CARPE what you need. Type naturally or use your voice."){
  var input by remember{mutableStateOf("")}; var response by remember{mutableStateOf("")}; var thinking by remember{mutableStateOf(false)}
- val prefs=remember{c.getSharedPreferences("carpe",Context.MODE_PRIVATE)}; val profile=remember{UserProfileStore(c)}; val scope=rememberCoroutineScope()
+ val profile=remember{UserProfileStore(c)}
  val voice=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()){r->r.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.let{input=it}}
- fun act(){val q=input.trim();if(q.isBlank()||thinking)return;profile.learn(q);thinking=true;scope.launch{response=withContext(Dispatchers.IO){GeminiClient(prefs.getString("gemini_api_key","") ?: "").ask(q,profile.summary())};thinking=false}}
+ fun act(){val q=input.trim();if(q.isBlank()||thinking)return;profile.learn(q);response=when{
+  q.contains("cook",true)||q.contains("recipe",true)||q.contains("dinner",true)->{val search=URLEncoder.encode(q,"UTF-8");try{c.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://www.google.com/search?q="+search)))}catch(_:Exception){};"Opening a recipe search. Choose something you actually want to make."}
+  q.contains("focus",true)||q.contains("work",true)->"Use the Focus tab for a protected 25-minute block. CARPE's goal is to help you put the phone down."
+  q.contains("walk",true)||q.contains("workout",true)||q.contains("exercise",true)||q.contains("move",true)->"Choose a small movement you can start now. Ten to fifteen minutes is enough to break the loop."
+  q.contains("buy",true)||q.contains("spend",true)||q.contains("save",true)->"Pause the purchase. Ask what problem it solves, whether you already own an alternative, and whether waiting 24 hours changes the decision."
+  else->SecureAiGateway().ask(q,profile.summary())
+ }}
  OutlinedTextField(value=input,onValueChange={input=it},modifier=Modifier.fillMaxWidth().heightIn(min=120.dp),placeholder={Text("Ask CARPE anything…")},maxLines=6)
  Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)){OutlinedButton(onClick={try{voice.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM).putExtra(RecognizerIntent.EXTRA_PROMPT,"Talk to CARPE"))}catch(_:Exception){response="Voice recognition isn't available on this device."}},modifier=Modifier.weight(1f)){Text("🎤  Speak")};Button(onClick={act()},enabled=!thinking,modifier=Modifier.weight(1f)){Text(if(thinking)"Thinking…" else "Send")}}
  if(response.isNotBlank()) ElevatedCard{Text(response,Modifier.fillMaxWidth().padding(16.dp))}
@@ -128,15 +131,14 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
  val context=androidx.compose.ui.platform.LocalContext.current
  val profile=remember{UserProfileStore(context)}
  var aiProfile by remember{mutableStateOf(profile.enabled())}
- var apiKey by remember{mutableStateOf(prefs.getString("gemini_api_key","") ?: "")}
- Text("Google AI",fontWeight=FontWeight.Bold,fontSize=20.sp)
- OutlinedTextField(apiKey,{apiKey=it;prefs.edit().putString("gemini_api_key",it.trim()).apply()},Modifier.fillMaxWidth(),label={Text("Gemini API key")},visualTransformation=androidx.compose.ui.text.input.PasswordVisualTransformation())
+ Text("AI & privacy",fontWeight=FontWeight.Bold,fontSize=20.sp)
+ Text("CARPE does not store a raw Gemini API key. Secure cloud AI will use Firebase AI Logic with App Check.",color=Color.DarkGray,fontSize=13.sp)
  Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Column(Modifier.weight(1f)){Text("Build my AI profile");Text("Learn from what I tell CARPE. Stored locally and sent to Google only with my requests.",color=Color.DarkGray,fontSize=12.sp)};Switch(aiProfile,{aiProfile=it;profile.setEnabled(it)})}
- if(aiProfile){Text("What CARPE remembers",fontWeight=FontWeight.Bold);Text(profile.summary(),fontSize=13.sp);OutlinedButton(onClick={profile.clear()}){Text("Clear AI profile")}}
+ if(aiProfile){var profileText by remember{mutableStateOf(profile.summary())};Text("What CARPE remembers",fontWeight=FontWeight.Bold);Text(profileText,fontSize=13.sp);OutlinedButton(onClick={profile.clear();profileText=profile.summary()}){Text("Clear AI profile")}}
  HorizontalDivider()
  val goals=listOf("More time offline","Fitness & movement","Home cooking","Focused work","Saving money","Less compulsive content")
  goals.forEach{g->val k="goal_"+g.lowercase().replace(" ","_").replace("&","and");var on by remember{mutableStateOf(prefs.getBoolean(k,g=="More time offline"||g=="Focused work"))};Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text(g,Modifier.weight(1f));Switch(on,{on=it;prefs.edit().putBoolean(k,it).apply()})}}
  HorizontalDivider();Text(a.todayMinutes().toString()+" minutes invested in deliberate actions",fontSize=22.sp,fontWeight=FontWeight.Bold)
  a.recent(8).forEach{Text("• "+it.title+" — "+it.minutes+" min")}
- Text("CARPE v0.6 alpha",color=Green,fontWeight=FontWeight.Bold)
+ Text("CARPE v"+BuildConfig.VERSION_NAME+" alpha",color=Green,fontWeight=FontWeight.Bold)
 }
