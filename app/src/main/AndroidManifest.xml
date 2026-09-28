@@ -4,7 +4,9 @@
 
     <application
         android:allowBackup="false"
-        android:icon="@mipmap/ic_launcher"\n        android:roundIcon="@mipmap/ic_launcher_round"\n        android:label="Carpe"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="Carpe"
         android:theme="@style/Theme.Carpe"
         android:usesCleartextTraffic="false">
         <activity android:name=".MainActivity" android:exported="true">
