@@ -16,7 +16,10 @@ def tree():
 
 def locate(label, tap=False):
     for attempt in range(8):
-        for node in tree().iter("node"):
+        nodes = list(tree().iter("node"))
+        # Prefer the actual button over explanatory text mentioning its label.
+        nodes.sort(key=lambda n: 0 if label in (n.get("text", ""), n.get("content-desc", "")) else 1)
+        for node in nodes:
             if label in (node.get("text", "") + node.get("content-desc", "")):
                 bounds = list(map(int, re.findall(r"\d+", node.get("bounds", ""))))
                 if len(bounds) == 4 and bounds[2] > bounds[0] and bounds[3] > bounds[1]:
