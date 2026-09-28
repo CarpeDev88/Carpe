@@ -14,6 +14,8 @@ android {
         targetSdk = 35
         versionCode = 13
         versionName = "0.13.0"
+        val aiEndpoint = project.findProperty("CARPE_AI_ENDPOINT")?.toString() ?: ""
+        buildConfigField("String", "CARPE_AI_ENDPOINT", "\"${aiEndpoint}\"")
     }
 
     compileOptions {
@@ -28,8 +30,6 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
-        val aiEndpoint = project.findProperty("CARPE_AI_ENDPOINT")?.toString() ?: ""
-        buildConfigField("String", "CARPE_AI_ENDPOINT", "\\\"${aiEndpoint}\\\"")
     }
 
     packaging {
