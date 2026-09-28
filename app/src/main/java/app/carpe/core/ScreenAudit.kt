@@ -1,6 +1,7 @@
 package app.carpe.core
 
 import android.content.Context
+import org.json.JSONArray
 import org.json.JSONObject
 import kotlin.math.roundToInt
 
@@ -18,6 +19,30 @@ data class ScreenAuditReport(
         if (sampledScreens <= 0) return null
         val boundedCount = cueScreens.coerceIn(0, sampledScreens)
         return ((boundedCount * 100.0) / sampledScreens).roundToInt()
+    }
+}
+
+data class AuditCueRate(val label: String, val earlierPercent: Int?, val latestPercent: Int?)
+
+data class ScreenAuditComparison(val earlier: ScreenAuditReport, val latest: ScreenAuditReport) {
+    fun cueRates(): List<AuditCueRate> = listOf(
+        AuditCueRate("Ad or sponsored labels", earlier.percentOfSamples(earlier.adLabelScreens), latest.percentOfSamples(latest.adLabelScreens)),
+        AuditCueRate("Recommendation labels", earlier.percentOfSamples(earlier.recommendationLabelScreens), latest.percentOfSamples(latest.recommendationLabelScreens)),
+        AuditCueRate("Continue or autoplay prompts", earlier.percentOfSamples(earlier.continuePromptScreens), latest.percentOfSamples(latest.continuePromptScreens)),
+        AuditCueRate("Similar visible text", earlier.percentOfSamples(earlier.similarScreens), latest.percentOfSamples(latest.similarScreens))
+    )
+
+    companion object {
+        /** Compares only the two most recent samples with the same user-entered label. */
+        fun between(reports: List<ScreenAuditReport>): ScreenAuditComparison? {
+            if (reports.size < 2) return null
+            val latest = reports.last()
+            val earlier = reports.dropLast(1).lastOrNull {
+                it.sourceLabel.trim().equals(latest.sourceLabel.trim(), ignoreCase = true)
+            } ?: return null
+            if (earlier.sampledScreens <= 0 || latest.sampledScreens <= 0) return null
+            return ScreenAuditComparison(earlier, latest)
+        }
     }
 }
 
@@ -84,40 +109,65 @@ class ScreenAuditStore(context: Context) {
     fun setSourceLabel(value: String) = prefs.edit().putString(KEY_SOURCE_LABEL, value.trim().take(60)).apply()
     fun sourceLabel(): String = prefs.getString(KEY_SOURCE_LABEL, "").orEmpty()
 
+    fun historyEnabled(): Boolean = prefs.getBoolean(KEY_HISTORY_ENABLED, false)
+    fun setHistoryEnabled(enabled: Boolean) { prefs.edit().putBoolean(KEY_HISTORY_ENABLED, enabled).apply() }
+
     fun save(report: ScreenAuditReport) {
-        val value = JSONObject().apply {
-            put("sampled", report.sampledScreens)
-            put("ads", report.adLabelScreens)
-            put("recommendations", report.recommendationLabelScreens)
-            put("continue", report.continuePromptScreens)
-            put("similar", report.similarScreens)
-            put("completedAt", report.completedAt)
-            put("sourceLabel", report.sourceLabel)
-        }
-        prefs.edit().putString(KEY_REPORT, value.toString()).apply()
+        prefs.edit().putString(KEY_REPORT, report.toJson().toString()).apply()
     }
+
+    /** Retains only aggregate counts, only after a completed session, and only after opt-in. */
+    fun archive(report: ScreenAuditReport) {
+        if (!historyEnabled() || report.sampledScreens <= 0) return
+        val items = JSONArray(prefs.getString(KEY_HISTORY, "[]") ?: "[]")
+        items.put(report.toJson())
+        val bounded = JSONArray()
+        for (index in (items.length() - MAX_HISTORY).coerceAtLeast(0) until items.length()) {
+            bounded.put(items.getJSONObject(index))
+        }
+        prefs.edit().putString(KEY_HISTORY, bounded.toString()).apply()
+    }
+
+    fun history(): List<ScreenAuditReport> = runCatching {
+        val items = JSONArray(prefs.getString(KEY_HISTORY, "[]") ?: "[]")
+        (0 until items.length()).mapNotNull { index -> items.optJSONObject(index)?.toReport() }
+    }.getOrDefault(emptyList())
 
     fun report(): ScreenAuditReport? = runCatching {
-        val value = JSONObject(prefs.getString(KEY_REPORT, null) ?: return null)
-        ScreenAuditReport(
-            sampledScreens = value.optInt("sampled"),
-            adLabelScreens = value.optInt("ads"),
-            recommendationLabelScreens = value.optInt("recommendations"),
-            continuePromptScreens = value.optInt("continue"),
-            similarScreens = value.optInt("similar"),
-            completedAt = value.optLong("completedAt"),
-            sourceLabel = value.optString("sourceLabel")
-        )
+        JSONObject(prefs.getString(KEY_REPORT, null) ?: return null).toReport()
     }.getOrNull()
 
-    fun clear() {
-        prefs.edit().clear().apply()
+    fun clearReports() {
+        prefs.edit().remove(KEY_REPORT).remove(KEY_HISTORY).apply()
     }
+
+    private fun ScreenAuditReport.toJson() = JSONObject().apply {
+        put("sampled", sampledScreens)
+        put("ads", adLabelScreens)
+        put("recommendations", recommendationLabelScreens)
+        put("continue", continuePromptScreens)
+        put("similar", similarScreens)
+        put("completedAt", completedAt)
+        put("sourceLabel", sourceLabel)
+    }
+
+    private fun JSONObject.toReport() = ScreenAuditReport(
+        sampledScreens = optInt("sampled"),
+        adLabelScreens = optInt("ads"),
+        recommendationLabelScreens = optInt("recommendations"),
+        continuePromptScreens = optInt("continue"),
+        similarScreens = optInt("similar"),
+        completedAt = optLong("completedAt"),
+        sourceLabel = optString("sourceLabel")
+    )
 
     private companion object {
         const val KEY_ACTIVE = "active"
         const val KEY_ERROR = "error"
         const val KEY_REPORT = "report"
+        const val KEY_HISTORY = "history"
+        const val KEY_HISTORY_ENABLED = "history_enabled"
         const val KEY_SOURCE_LABEL = "source_label"
+        const val MAX_HISTORY = 5
     }
 }

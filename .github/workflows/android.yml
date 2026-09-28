@@ -55,26 +55,9 @@ jobs:
           target: google_apis
           arch: x86_64
           script: |
-            adb install -r app/build/outputs/apk/debug/app-debug.apk
-            adb shell am start -W -n app.carpe/.MainActivity
-            sleep 5
-            adb shell pidof app.carpe
-            adb shell screencap -p /sdcard/carpe-today.png
-            adb pull /sdcard/carpe-today.png carpe-today.png
-            adb shell input tap 160 580
-            sleep 2
-            adb shell screencap -p /sdcard/carpe-focus.png
-            adb pull /sdcard/carpe-focus.png carpe-focus.png
-            adb shell input tap 224 580
-            sleep 2
-            adb shell screencap -p /sdcard/carpe-mirror.png
-            adb pull /sdcard/carpe-mirror.png carpe-mirror.png
-            adb shell input tap 288 580
-            sleep 2
-            adb shell screencap -p /sdcard/carpe-me.png
-            adb pull /sdcard/carpe-me.png carpe-me.png
+            python3 scripts/smoke_onboarding.py
       - name: Save emulator screenshot
-        if: github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: carpe-emulator-screenshot

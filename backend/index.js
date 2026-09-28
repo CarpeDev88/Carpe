@@ -1,13 +1,44 @@
 import express from "express";
+import {timingSafeEqual} from "node:crypto";
 
 const app=express();
 app.disable("x-powered-by");
+app.set("trust proxy",1);
 app.use(express.json({limit:"64kb"}));
 
 const PORT=Number(process.env.PORT||8080);
 const GEMINI_API_KEY=process.env.GEMINI_API_KEY||"";
 const GEMINI_MODEL=process.env.GEMINI_MODEL||"gemini-2.5-flash";
 const CARPE_APP_TOKEN=process.env.CARPE_APP_TOKEN||"";
+const RATE_WINDOW_MS=60_000;
+const configuredLimit=Number(process.env.CARPE_RATE_LIMIT_MAX||10);
+const RATE_LIMIT_MAX=Number.isInteger(configuredLimit)?Math.min(1000,Math.max(1,configuredLimit)):10;
+const rateWindows=new Map();
+
+function rateLimit(req,res,next){
+ const now=Date.now();
+ const key=String(req.ip||req.socket.remoteAddress||"unknown").slice(0,120);
+ let bucket=rateWindows.get(key);
+ if(!bucket||now-bucket.startedAt>=RATE_WINDOW_MS){bucket={startedAt:now,count:0};rateWindows.set(key,bucket)}
+ if(bucket.count>=RATE_LIMIT_MAX){
+  const retryAfter=Math.max(1,Math.ceil((RATE_WINDOW_MS-(now-bucket.startedAt))/1000));
+  res.set("Retry-After",String(retryAfter));
+  return res.status(429).json({error:"Too many requests. Wait before trying again."});
+ }
+ bucket.count++;
+ if(rateWindows.size>10_000){
+  for(const [client,window] of rateWindows)if(now-window.startedAt>=RATE_WINDOW_MS)rateWindows.delete(client);
+  if(rateWindows.size>10_000)rateWindows.clear();
+ }
+ next();
+}
+
+function authorized(value){
+ if(!CARPE_APP_TOKEN||typeof value!=="string")return false;
+ const expected=Buffer.from(`Bearer ${CARPE_APP_TOKEN}`);
+ const actual=Buffer.from(value);
+ return actual.length===expected.length&&timingSafeEqual(actual,expected);
+}
 
 const SYSTEM=`You are CARPE, a user-first AI whose success is measured by whether technology helps the person live the life they deliberately choose—not by engagement.
 Protect autonomy, attention, privacy, time, money, relationships, and long-term goals.
@@ -23,11 +54,15 @@ function turns(history=[]){return Array.isArray(history)?history.slice(-10).flat
  return [{role:t?.role==="assistant"?"model":"user",parts:[{text}]}];
 }):[]}
 
-app.get("/health",(req,res)=>res.status(GEMINI_API_KEY?200:503).json({ok:Boolean(GEMINI_API_KEY),service:"carpe-intelligence",model:GEMINI_MODEL,providerConfigured:Boolean(GEMINI_API_KEY)}));
+app.get("/health",(req,res)=>{
+ const ready=Boolean(GEMINI_API_KEY&&CARPE_APP_TOKEN);
+ res.status(ready?200:503).json({ok:ready,service:"carpe-intelligence",model:GEMINI_MODEL,providerConfigured:Boolean(GEMINI_API_KEY),accessConfigured:Boolean(CARPE_APP_TOKEN)});
+});
 
-app.post("/v1/ask",async(req,res)=>{
+app.post("/v1/ask",rateLimit,async(req,res)=>{
  try{
-  if(CARPE_APP_TOKEN && req.get("Authorization")!==`Bearer ${CARPE_APP_TOKEN}`) return res.status(401).json({error:"Unauthorized"});
+  if(!CARPE_APP_TOKEN)return res.status(503).json({error:"AI service access is not configured"});
+  if(!authorized(req.get("Authorization"))) return res.status(401).json({error:"Unauthorized"});
   if(!GEMINI_API_KEY)return res.status(503).json({error:"AI provider is not configured"});
   const message=clean(req.body?.message,6000);
   if(!message)return res.status(400).json({error:"message is required"});

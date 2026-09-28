@@ -7,11 +7,10 @@ data class CarpeAssessment(val impact: Impact, val confidence: Float, val explan
 
 class CarpeEngine {
  fun assess(o: TechUseObservation, goals: List<LifeGoal>): CarpeAssessment {
-  o.userRating?.let { r -> return when { r >= 4 -> CarpeAssessment(Impact.BENEFICIAL,.98f,"You told Carpe this technology supports your life."); r <= 2 -> CarpeAssessment(Impact.DETRIMENTAL,.98f,"You told Carpe this technology tends to pull you away from what matters.","Add friction before the next session."); else -> CarpeAssessment(Impact.UNCLEAR,.95f,"You described this technology as mixed.","Use it deliberately, then check in again.") } }
+  if (o.intentional == false) return CarpeAssessment(Impact.DETRIMENTAL,.92f,"You marked this use as not matching your intention.","Pause and choose whether you want to continue.")
+  o.userRating?.let { r -> return when { r >= 4 -> CarpeAssessment(Impact.BENEFICIAL,.98f,"You told Carpe this technology supports your life."); r <= 2 -> CarpeAssessment(Impact.DETRIMENTAL,.98f,"You told Carpe this technology tends to pull you away from what matters.","Pause and choose whether to continue."); else -> CarpeAssessment(Impact.UNCLEAR,.95f,"You described this technology as mixed.","Use it deliberately, then check in again.") } }
   if (o.intentional == true && o.goalId != null && goals.any { it.id == o.goalId }) return CarpeAssessment(Impact.BENEFICIAL,.82f,"This session was intentional and connected to a goal you chose.")
-  if (o.minutes >= 60 && o.intentional != true) return CarpeAssessment(Impact.DETRIMENTAL,.72f,"This app has taken " + o.minutes + " minutes today without a stated purpose.","Take a 10-minute departure and decide whether to return.")
-  if (o.minutes >= 30 && o.intentional == false) return CarpeAssessment(Impact.DETRIMENTAL,.68f,"You marked this use as unintentional and it has accumulated " + o.minutes + " minutes.","Pause before opening it again.")
-  if (o.minutes >= 20) return CarpeAssessment(Impact.UNCLEAR,.52f,"This app has meaningful attention today, but Carpe does not know whether that time served you.","Teach Carpe: helpful, mixed, or harmful?")
-  return CarpeAssessment(Impact.UNCLEAR,.30f,"Not enough evidence yet to judge this use.")
+  if (o.minutes > 0) return CarpeAssessment(Impact.UNCLEAR,.30f,"Carpe observed " + o.minutes + " minutes, but duration alone cannot show whether this use served you.")
+  return CarpeAssessment(Impact.UNCLEAR,.20f,"Not enough evidence yet to judge this use.")
  }
 }

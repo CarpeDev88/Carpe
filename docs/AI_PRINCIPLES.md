@@ -24,6 +24,14 @@ Assessments should combine, where available:
 
 The user's explicit correction outranks an inferred classification.
 
+## Outcome measures
+
+Use voluntary, user-chosen check-ins to learn whether an action supported a goal. Show the time window and the evidence being summarized. A check-in is a private planning aid, not a score of the user or a measure of moral success.
+
+Do not optimize CARPE's own opens, session length, retention, notifications, or streaks. Do not infer that less device use is always better. A successful intervention may be followed by the user closing CARPE, continuing to use another app deliberately, or choosing a different action.
+
+For product evaluation, ask whether the user felt more in control and whether their chosen goal moved forward. Collect research feedback only through explicit opt-in, keep it separate from app operation, and allow withdrawal and deletion. Never turn any one proxy measure into an engagement target.
+
 ## Safety and autonomy constraints
 
 - Never optimize for advertising, purchases, retention, daily active use, or time spent in Carpe.
