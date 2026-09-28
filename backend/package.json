@@ -1,0 +1,1 @@
+{"name":"carpe-intelligence-service","version":"0.1.0","private":true,"type":"module","engines":{"node":">=22"},"scripts":{"start":"node index.js","test":"node --test"},"dependencies":{"express":"^5.1.0"}}
