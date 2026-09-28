@@ -1,6 +1,6 @@
 {
-  "versionCode": 21,
-  "versionName": "0.21.0",
+  "versionCode": 22,
+  "versionName": "0.22.0",
   "downloadUrl": "https://github.com/CarpeDev88/Carpe/actions/workflows/android.yml",
-  "message": "CARPE v0.21.0: cooking and recipe search now stay inside CARPE with offline ingredient and time matching."
+  "message": "CARPE v0.22.0: the Algorithm Mirror separates observed app time from harm and lets you record or clear local intention feedback."
 }
