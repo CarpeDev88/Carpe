@@ -37,7 +37,7 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
  MaterialTheme(colorScheme=lightColorScheme(primary=Green,background=Cream)){
   Scaffold(bottomBar={NavigationBar{listOf("Today","Coach","Focus","Shield","Me").forEachIndexed{i,n->NavigationBarItem(selected=tab==i,onClick={tab=i},icon={Text(listOf("☀","✦","◉","⬡","●")[i])},label={Text(n)})}}}){p->
    when(tab){
-    0->Today(p,context,actions,{refresh++},{tab=4})
+    0->Today(p,context,actions,{refresh++},{tab=4},{tab=2})
     1->Coach(p,prefs,usage,actions,refresh)
     2->Focus(p,actions){refresh++}
     3->Shield(p,context,usage)
@@ -47,10 +47,12 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
  }
 }
 @Composable private fun Page(p:PaddingValues,title:String,sub:String,body:@Composable ColumnScope.()->Unit){Column(Modifier.fillMaxSize().padding(p).verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){Text("CARPE",color=Green,fontWeight=FontWeight.Bold,letterSpacing=3.sp);Text(title,fontSize=32.sp,fontWeight=FontWeight.Bold);Text(sub,color=Color.DarkGray);body();Spacer(Modifier.height(30.dp))}}
-@Composable private fun Today(p:PaddingValues,c:Context,s:ActionStore,changed:()->Unit,openSettings:()->Unit)=Page(p,"What do you want to do right now?","Tell CARPE what you need. Type naturally or use your voice."){
+@Composable private fun Today(p:PaddingValues,c:Context,s:ActionStore,changed:()->Unit,openSettings:()->Unit,openFocus:()->Unit)=Page(p,"What do you want to do right now?","Tell CARPE what you need. Type naturally or use your voice."){
  var input by remember{mutableStateOf("")}; var response by remember{mutableStateOf("")}; var thinking by remember{mutableStateOf(false)}
  var lastIntent by remember{mutableStateOf(CarpeIntent.UNKNOWN)}
  var recipeQuery by remember{mutableStateOf("")}
+ var showRecipeSearch by remember{mutableStateOf(false)}
+ var recipeInput by remember{mutableStateOf("")}
  val scope=rememberCoroutineScope(); val gateway=remember{SecureAiGateway(c)}; val history=remember{mutableStateListOf<AiTurn>()}
  val profile=remember{UserProfileStore(c)}
  val voice=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()){r->r.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.let{input=it}}
@@ -89,6 +91,7 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
    TextButton(onClick=openSettings){Text("Open AI settings")}
   }
  }
+ else Text("When you tap Send, your message, recent chat, and any AI profile you enabled go to the CARPE service and its AI provider.",color=Color.DarkGray,fontSize=12.sp)
  OutlinedTextField(value=input,onValueChange={input=it},modifier=Modifier.fillMaxWidth().heightIn(min=120.dp),placeholder={Text("Ask CARPE anything…")},maxLines=6)
  Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)){OutlinedButton(onClick={try{voice.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM).putExtra(RecognizerIntent.EXTRA_PROMPT,"Talk to CARPE"))}catch(_:Exception){response="Voice recognition isn't available on this device."}},modifier=Modifier.weight(1f)){Text("🎤  Speak")};Button(onClick={act()},enabled=!thinking,modifier=Modifier.weight(1f)){Text(if(thinking)"Thinking…" else "Send")}}
  if(response.isNotBlank()) ElevatedCard{Text(response,Modifier.fillMaxWidth().padding(16.dp))}
@@ -97,9 +100,16 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
   runCatching{c.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(url)))}
  }){Text("Find recipes in browser")}
  Text("Suggestions",fontSize=18.sp,fontWeight=FontWeight.Bold)
- ActionCard("Cook something","Tell CARPE what you have, what sounds good, your budget, or how much time you have."){input="Help me cook something. Ask me what ingredients I have, what sounds good, and how much time I have."}
+ ActionCard("Cook something","Search recipes using ingredients, a meal idea, or a dietary need."){showRecipeSearch=!showRecipeSearch}
+ if(showRecipeSearch){
+  OutlinedTextField(value=recipeInput,onValueChange={recipeInput=it},modifier=Modifier.fillMaxWidth(),label={Text("Ingredients or meal")},placeholder={Text("eggs, spinach, 20 minutes")},singleLine=true)
+  Button(onClick={
+   val query="recipes "+recipeInput.trim().ifBlank{"easy dinner"}
+   runCatching{c.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://www.google.com/search?q="+Uri.encode(query))))}
+  }){Text("Search recipes")}
+ }
  ActionCard("Move your body","Walk, train, stretch, or get outside."){input="Help me move my body today"}
- ActionCard("Do meaningful work","Start a protected focus block."){input="Help me focus on meaningful work"}
+ ActionCard("Do meaningful work","Start a protected focus block."){openFocus()}
  ActionCard("Spend deliberately","Pause before a non-essential purchase."){input="Help me make a deliberate spending decision"}
  Text("CARPE counts completed offline actions, not time spent inside CARPE.",color=Green,fontWeight=FontWeight.Medium)
 }
@@ -152,9 +162,12 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
  Text("Put the phone down. CARPE will not send engagement prompts during the session.")
 }
 @Composable private fun Shield(p:PaddingValues,c:Context,u:UsageAccess)=Page(p,"Algorithm shield","See and reduce the signals that attention-harvesting systems use."){
- val granted=u.isGranted()
- ActionCard("Usage intelligence",if(granted)"Enabled. CARPE can analyze foreground app time locally." else "Optional. Tap to grant Android Usage Access."){if(!granted)c.startActivity(u.settingsIntent())}
- ActionCard("Notification intelligence","Grant CARPE notification access to measure which apps repeatedly compete for your attention."){c.startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"))}
+ var permissionRefresh by remember{mutableIntStateOf(0)}
+ val settingsLauncher=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()){permissionRefresh++}
+ // Recheck after returning from Android settings without requiring a tab switch.
+ val granted=remember(permissionRefresh){u.isGranted()}
+ ActionCard("Usage intelligence",if(granted)"Enabled. CARPE can analyze foreground app time locally." else "Optional. Tap to grant Android Usage Access."){if(!granted)settingsLauncher.launch(u.settingsIntent())}
+ ActionCard("Notification intelligence","Grant CARPE notification access to measure which apps repeatedly compete for your attention."){settingsLauncher.launch(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"))}
  ActionCard("Notification controls","Open Android notification settings to silence apps that pull you back."){c.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE,c.packageName))}
  ActionCard("Privacy dashboard","Review Android permissions granted to apps on this device."){try{c.startActivity(Intent(Settings.ACTION_PRIVACY_SETTINGS))}catch(_:Exception){}}
  if(granted){
@@ -194,7 +207,7 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
  val profile=remember{UserProfileStore(context)}
  var aiProfile by remember{mutableStateOf(profile.enabled())}
  Text("AI & privacy",fontWeight=FontWeight.Bold,fontSize=20.sp)
- Text("Cloud AI uses a CARPE service URL. Your messages are sent to that service and its AI provider when you tap Send. Never enter an AI key here.",color=Color.DarkGray,fontSize=13.sp)
+ Text("Cloud AI uses a CARPE service URL. Your message, recent chat, and any AI profile you enabled are sent to that service and its AI provider when you tap Send. Never enter an AI key here.",color=Color.DarkGray,fontSize=13.sp)
  var endpointInput by remember{mutableStateOf(SecureAiGateway.configuredEndpoint(context))}
  var serviceStatus by remember{mutableStateOf("")}
  var testing by remember{mutableStateOf(false)}

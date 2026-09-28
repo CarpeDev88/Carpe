@@ -30,7 +30,7 @@ class UsageAccess(private val context: Context) {
         val manager = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
         val end = System.currentTimeMillis()
         val start = end - 24L * 60L * 60L * 1000L
-        return manager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, start, end)
+        return (manager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, start, end) ?: emptyList())
             .asSequence()
             .filter { it.totalTimeInForeground > 0 }
             .map { AppUsage(it.packageName, it.totalTimeInForeground / 60_000L) }
