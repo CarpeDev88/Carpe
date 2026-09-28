@@ -240,6 +240,7 @@ private class ChatSession {
  var showAuditLabel by remember{mutableStateOf(auditStore.sourceLabel().isNotBlank())}
  val isAuditing=remember(auditRefresh){auditStore.isActive()}
  val auditReport=remember(auditRefresh){auditStore.report()}
+ LaunchedEffect(auditReport?.completedAt){aiAnalysis=""}
  val auditHistory=remember(auditRefresh){auditStore.history()}
  val auditComparison=remember(auditHistory){ScreenAuditComparison.between(auditHistory)}
  var compareSamples by remember(auditRefresh){mutableStateOf(auditStore.historyEnabled())}
@@ -321,7 +322,7 @@ private class ChatSession {
      aiScope.launch{
       val provider=if(aiKeyStore.hasKey())directAi else aiGateway
       provider.ask(prompt,"",emptyList()).fold(
-       onSuccess={aiAnalysis=it},
+       onSuccess={answer->if(auditStore.report()?.completedAt==auditReport.completedAt)aiAnalysis=answer},
        onFailure={aiAnalysis="CARPE couldn't get an AI interpretation: ${it.message ?: "connection failed"}"}
       )
       aiAnalyzing=false
