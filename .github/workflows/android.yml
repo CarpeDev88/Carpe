@@ -20,7 +20,9 @@ jobs:
         with:
           gradle-version: '8.9'
       - name: Build debug APK
-        run: gradle assembleDebug
+        env:
+          CARPE_AI_ENDPOINT: ${{ vars.CARPE_AI_ENDPOINT }}
+        run: gradle assembleDebug -PCARPE_AI_ENDPOINT="$CARPE_AI_ENDPOINT"
       - uses: actions/upload-artifact@v4
         with:
           name: carpe-debug-apk
