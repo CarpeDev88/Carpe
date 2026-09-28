@@ -38,6 +38,7 @@ interface CarpeAiProvider {
  * (Cloud Run / Firebase Function) which keeps provider credentials server-side.
  */
 class SecureAiGateway(private val context:Context):CarpeAiProvider {
+ private val tokenStore=AiServiceTokenStore(context)
  companion object {
   private const val PREFS="carpe_ai_service"
   private const val ENDPOINT="endpoint"
@@ -51,9 +52,14 @@ class SecureAiGateway(private val context:Context):CarpeAiProvider {
     ?.takeIf(::validEndpoint) ?: app.carpe.BuildConfig.CARPE_AI_ENDPOINT.takeIf(::validEndpoint).orEmpty()
   fun setEndpoint(context:Context,value:String) {
    require(validEndpoint(value)){"Enter an HTTPS service URL ending in /v1/ask."}
-   context.getSharedPreferences(PREFS,Context.MODE_PRIVATE).edit().putString(ENDPOINT,value.trim()).apply()
+   val clean=value.trim()
+   if(configuredEndpoint(context)!=clean)clearAccessToken(context)
+   context.getSharedPreferences(PREFS,Context.MODE_PRIVATE).edit().putString(ENDPOINT,clean).apply()
   }
-  fun clearEndpoint(context:Context) = context.getSharedPreferences(PREFS,Context.MODE_PRIVATE).edit().remove(ENDPOINT).apply()
+  fun clearEndpoint(context:Context) {context.getSharedPreferences(PREFS,Context.MODE_PRIVATE).edit().remove(ENDPOINT).apply();clearAccessToken(context)}
+  fun hasAccessToken(context:Context,endpoint:String=configuredEndpoint(context))=AiServiceTokenStore(context).hasToken(endpoint)
+  fun saveAccessToken(context:Context,endpoint:String,value:String)=AiServiceTokenStore(context).saveToken(endpoint,value)
+  fun clearAccessToken(context:Context)=AiServiceTokenStore(context).clear()
  }
  override suspend fun ask(message:String, profile:String, history:List<AiTurn>):Result<String> = withContext(Dispatchers.IO) {
   val endpoint=configuredEndpoint(context)
@@ -73,6 +79,7 @@ class SecureAiGateway(private val context:Context):CarpeAiProvider {
    val c=(URL(endpoint).openConnection() as HttpURLConnection).apply {
     requestMethod="POST"; connectTimeout=12_000; readTimeout=30_000
     doOutput=true; setRequestProperty("Content-Type","application/json")
+    tokenStore.getToken(endpoint)?.let{setRequestProperty("Authorization","Bearer $it")}
    }
    c.outputStream.use{it.write(body.toByteArray(Charsets.UTF_8))}
    val code=c.responseCode
@@ -80,7 +87,7 @@ class SecureAiGateway(private val context:Context):CarpeAiProvider {
    if(code !in 200..299) {
     val serviceError=runCatching{JSONObject(raw).optString("error")}.getOrDefault("")
     val explanation=when(code){
-     401,403->"The AI service rejected the request. Check its app access settings."
+     401,403->"The AI service rejected the request. Check its URL and private service token."
      404->"The AI service URL was not found. Check that it ends in /v1/ask."
      429->"The AI service is busy or has reached its request limit."
      502,503->if(serviceError=="AI provider is not configured") "The service is missing its AI provider key."

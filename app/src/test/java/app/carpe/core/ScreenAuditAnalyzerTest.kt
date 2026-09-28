@@ -31,6 +31,22 @@ class ScreenAuditAnalyzerTest {
     }
 
     @Test
+    fun comparesOnlyMostRecentMatchingLabelAndUsesSamplePercentages() {
+        val older = ScreenAuditReport(10, 2, 3, 1, 4, 100L, "Short video feed")
+        val otherFeed = ScreenAuditReport(5, 5, 0, 0, 0, 200L, "News feed")
+        val latest = ScreenAuditReport(8, 4, 2, 6, 1, 300L, "short video feed")
+
+        val comparison = ScreenAuditComparison.between(listOf(older, otherFeed, latest))
+
+        assertEquals(older, comparison?.earlier)
+        assertEquals(latest, comparison?.latest)
+        assertEquals(20, comparison?.cueRates()?.first()?.earlierPercent)
+        assertEquals(50, comparison?.cueRates()?.first()?.latestPercent)
+        assertEquals(null, ScreenAuditComparison.between(listOf(older, otherFeed)))
+        assertEquals(null, ScreenAuditComparison.between(listOf(older.copy(sampledScreens = 0), latest)))
+    }
+
+    @Test
     fun reportsCueShareOfSmallSampleAndHandlesInvalidCounts() {
         val report = ScreenAuditReport(
             sampledScreens = 8,

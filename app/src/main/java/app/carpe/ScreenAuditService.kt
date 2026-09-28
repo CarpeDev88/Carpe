@@ -207,7 +207,9 @@ class ScreenAuditService : Service() {
         sessionGeneration++
         handler.removeCallbacks(sample)
         handler.removeCallbacks(sessionTimeout)
-        store.save(analyzer.report(sourceLabel = store.sourceLabel()))
+        val completedReport = analyzer.report(sourceLabel = store.sourceLabel())
+        store.save(completedReport)
+        store.archive(completedReport)
         store.setActive(false)
         virtualDisplay?.release()
         virtualDisplay = null

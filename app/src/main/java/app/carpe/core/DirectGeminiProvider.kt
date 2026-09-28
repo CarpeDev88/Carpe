@@ -81,6 +81,67 @@ class AiStudioKeyStore(context: Context) {
     }
 }
 
+/** Stores a private CARPE service access token encrypted with a device-bound key. */
+class AiServiceTokenStore(context: Context) {
+    private val prefs = context.getSharedPreferences("carpe_ai_service_access", Context.MODE_PRIVATE)
+
+    fun hasToken(endpoint: String): Boolean = getToken(endpoint) != null
+
+    fun saveToken(endpoint: String, value: String) {
+        val cleanEndpoint = endpoint.trim()
+        require(SecureAiGateway.validEndpoint(cleanEndpoint)) { "Save a valid CARPE service URL before saving its access token." }
+        val clean = value.trim()
+        require(clean.length >= 32) { "Enter the full CARPE service access token." }
+        val cipher = Cipher.getInstance(TRANSFORMATION).apply {
+            init(Cipher.ENCRYPT_MODE, getOrCreateSecretKey())
+        }
+        val encrypted = cipher.doFinal(clean.toByteArray(Charsets.UTF_8))
+        prefs.edit()
+            .putString(KEY_IV, Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
+            .putString(KEY_DATA, Base64.encodeToString(encrypted, Base64.NO_WRAP))
+            .putString(KEY_ENDPOINT, cleanEndpoint)
+            .apply()
+    }
+
+    fun getToken(endpoint: String): String? = runCatching {
+        if (prefs.getString(KEY_ENDPOINT, null) != endpoint.trim()) return null
+        val iv = prefs.getString(KEY_IV, null) ?: return null
+        val data = prefs.getString(KEY_DATA, null) ?: return null
+        val cipher = Cipher.getInstance(TRANSFORMATION).apply {
+            init(Cipher.DECRYPT_MODE, getOrCreateSecretKey(), GCMParameterSpec(128, Base64.decode(iv, Base64.NO_WRAP)))
+        }
+        String(cipher.doFinal(Base64.decode(data, Base64.NO_WRAP)), Charsets.UTF_8)
+    }.getOrNull()
+
+    fun clear() {
+        prefs.edit().clear().apply()
+        runCatching { KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }.deleteEntry(ALIAS) }
+    }
+
+    private fun getOrCreateSecretKey(): SecretKey {
+        val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
+        (keyStore.getKey(ALIAS, null) as? SecretKey)?.let { return it }
+        val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
+        generator.init(
+            KeyGenParameterSpec.Builder(ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                .setRandomizedEncryptionRequired(true)
+                .build()
+        )
+        return generator.generateKey()
+    }
+
+    private companion object {
+        const val ANDROID_KEYSTORE = "AndroidKeyStore"
+        const val ALIAS = "carpe-ai-service-token"
+        const val TRANSFORMATION = "AES/GCM/NoPadding"
+        const val KEY_IV = "iv"
+        const val KEY_DATA = "ciphertext"
+        const val KEY_ENDPOINT = "endpoint"
+    }
+}
+
 /** Direct, no-CARPE-server connection for a user's own AI Studio free-tier key. */
 class DirectGeminiProvider(private val keyStore: AiStudioKeyStore) : CarpeAiProvider {
     override suspend fun ask(message: String, profile: String, history: List<AiTurn>): Result<String> =

@@ -4,6 +4,8 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val releaseKeystorePath = System.getenv("CARPE_SIGNING_KEYSTORE_PATH").orEmpty()
+
 android {
     namespace = "app.carpe"
     compileSdk = 35
@@ -12,8 +14,8 @@ android {
         applicationId = "app.carpe"
         minSdk = 26
         targetSdk = 35
-        versionCode = 23
-        versionName = "0.23.0"
+        versionCode = 28
+        versionName = "0.28.0"
         val aiEndpoint = project.findProperty("CARPE_AI_ENDPOINT")?.toString() ?: ""
         buildConfigField("String", "CARPE_AI_ENDPOINT", "\"${aiEndpoint}\"")
     }
@@ -30,6 +32,23 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+
+    signingConfigs {
+        create("release") {
+            if (releaseKeystorePath.isNotBlank()) {
+                storeFile = file(releaseKeystorePath)
+                storePassword = System.getenv("CARPE_SIGNING_KEYSTORE_PASSWORD") ?: ""
+                keyAlias = System.getenv("CARPE_SIGNING_KEY_ALIAS") ?: ""
+                keyPassword = System.getenv("CARPE_SIGNING_KEY_PASSWORD") ?: ""
+            }
+        }
+    }
+
+    buildTypes {
+        getByName("release") {
+            signingConfig = signingConfigs.getByName("release")
+        }
     }
 
     packaging {
